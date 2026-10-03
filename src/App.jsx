@@ -119,6 +119,7 @@ function Home() {
       <header className="navbar">
         <div className="container nav-container">
           <Link to="/" className="nav-brand">
+          <img src="/internhub-logo.png" alt="InternHub Logo" className="nav-logo" />
             <span>Intern</span>
             <span className="brand-accent">
               Hub

@@ -1364,3 +1364,16 @@
     gap: 28px;
   }
 }
+/* InternHub navbar logo */
+.nav-logo {
+  width: 55px;
+  height: 55px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
