@@ -31,7 +31,7 @@ The system also incorporates AI-powered features and ATS-style resume analysis t
 - Find students matching internship requirements
 - Manage internship applications
 - Track candidates and application status
-
+## Version 2
 ## AI Implementions
 
 ### AI Internship Matching
