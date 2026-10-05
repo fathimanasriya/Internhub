@@ -36,23 +36,23 @@ import { getInternshipById } from '../../data/internshipsData'
  */
 const demoInternshipProgress = {
   internship: {
-    title: 'Software Engineering Intern',
-    company: 'NovaTech Labs',
+    title: 'Frontend Development Intern',
+    company: 'TechNova Labs',
     location: 'Bengaluru',
     workMode: 'Hybrid',
     duration: '3 Months',
     startDate: '2026-09-01',
     endDate: '2026-11-30',
-    status: 'Active',
+    status: 'complete',
   },
 
   overview: {
-    percentage: 65,
-    completedTasks: 13,
+    percentage: 100,
+    completedTasks: 20,
     totalTasks: 20,
-    completedDays: 42,
+    completedDays: 90,
     totalDays: 90,
-    completedMilestones: 4,
+    completedMilestones: 6,
     totalMilestones: 6,
   },
 
@@ -88,21 +88,21 @@ const demoInternshipProgress = {
     {
       id: 5,
       title: 'Midpoint Review',
-      status: 'In Progress',
+      status: 'Completed',
       date: 'Oct 15, 2026',
       description: 'Evaluation with mentor and submission of first major feature milestone.',
     },
     {
       id: 6,
       title: 'Final Project',
-      status: 'Upcoming',
+      status: 'Completed',
       date: 'Nov 15, 2026',
       description: 'Deployment of core module and capstone technical presentation.',
     },
     {
       id: 7,
       title: 'Internship Completed',
-      status: 'Upcoming',
+      status: 'Completed',
       date: 'Nov 30, 2026',
       description: 'Final appraisal, experience certificate issuance, and college sign-off.',
     },
