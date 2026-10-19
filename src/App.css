@@ -1366,9 +1366,10 @@
 }
 /* InternHub navbar logo */
 .nav-logo {
-  width: 55px;
-  height: 55px;
+  width: 68px;
+  height: 68px;
   object-fit: contain;
+  display: block;
   flex-shrink: 0;
 }
 
