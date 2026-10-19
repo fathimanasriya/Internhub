@@ -296,12 +296,14 @@ I can help with internships, resumes, interviews, cover letters, skills, and car
         {isOpen ? (
           <X size={25} strokeWidth={2} />
         ) : (
-          <Sparkles size={26} strokeWidth={1.8} />
+         <img
+          src="/ai-chatbot.png"
+          alt="InternHub AI Assistant"
+          className="ai-chatbot-icon"
+/>
         )}
 
-        {!isOpen && (
-          <span className="ai-button-pulse"></span>
-        )}
+       
       </button>
 
       {/* =====================================
@@ -514,107 +516,49 @@ I can help with internships, resumes, interviews, cover letters, skills, and car
            INTERNHUB AI
            Plum + Warm Gray Design System
         ====================================== */
+       .ai-chatbot-icon {
+          width: 85px;
+          height: 85px;
+          object-fit: contain;
+          display: block;
+          border-radius: 0%;
+          animation: none;
+          filter: none;
+          transition: transform 0.2s ease;
+        }
         .ai-floating-button {
-          position: fixed;
-          right: 26px;
-          bottom: 26px;
-
-          width: 62px;
-          height: 62px;
-
-          border: 1px solid rgba(103, 64, 95, 0.25);
-          border-radius: 50%;
-
-          background: linear-gradient(
-            145deg,
-            #ffffff,
-            #f0eaf0
-          );
-
-          color: #67405F;
-
+          position:fixed;
+          right: 20px;
+          bottom: 20px;
+          width: 90px;
+          height: 90px;
+          padding: 0;
           display: flex;
-          align-items: center;  
+          align-items: center;
           justify-content: center;
-
+          background: transparent !important;
+          border: none;
+          box-shadow: none !important;
           cursor: pointer;
-
-          box-shadow:
-           0 8px 25px rgba(67, 44, 69, 0.18),
-          0 2px 6px rgba(67, 44, 69, 0.10);
-
-          transition:
-            transform 0.25s ease,
-            box-shadow 0.25s ease,
-            background 0.25s ease;
-
-            z-index: 1000;
+          transition: transform 0.2s ease;
           }
 
         .ai-floating-button:hover {
-          transform: translateY(-4px) scale(1.05);
-
-          background: #67405F;
-          color: #ffffff;
-
-          box-shadow:
-           0 12px 30px rgba(67, 44, 69, 0.28);
+          background: transparent !important;
+          box-shadow: none !important;
+          transform: scale(1.1);
           }
 
         .ai-floating-button:active {
-            transform: scale(0.96);
+            transform: scale(0.95);
           }
-        .ai-button-pulse {
-          position: absolute;
-          width: 10px;
-          height: 10px;
-
-          top: 7px;
-          right: 7px;
-
-          border-radius: 50%;
-
-          background: #ffffff;
-
-          box-shadow:
-            0 0 6px #ffffff,
-            0 0 12px #d8bfd5,
-            0 0 20px rgba(103, 64, 95, 0.65);
-
-            animation: aiShine 1.8s ease-in-out infinite;
-          }
-          .ai-floating-button svg {
-            filter:
-              drop-shadow(0 0 3px rgba(103, 64, 95, 0.5))
-              drop-shadow(0 0 7px rgba(103, 64, 95, 0.25));
-
-            animation: aiSparkle 2s ease-in-out infinite;
+        
+        .ai-floating-button svg {
+            filter:none;
+            animation:none;
           }
 
-          @keyframes aiSparkle {
-            0%,
-            100% {
-              transform: scale(1);
-            }
-
-            50% {
-              transform: scale(1.12);
-            }
-          }
-
-        @keyframes aiShine {
-          0%,
-          100% {
-            opacity: 0.5;
-            transform: scale(0.75);
-          }
-
-          50% {
-            opacity: 1;
-            transform: scale(1.2);
-          }
-        }
-      }
+      
 
         /* =====================================
            CHAT PANEL
