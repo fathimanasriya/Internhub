@@ -1,0 +1,630 @@
+/* ==========================================================================
+   InternHub HR Applications Stylesheet (HRApplications.css)
+   Theme Palette: Professional Corporate Plum & Warm Neutral System
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Header Bar
+   -------------------------------------------------------------------------- */
+.hr-apps-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-apps-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--hr-deep-plum, #432C45);
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+
+.hr-apps-subtitle {
+  font-size: 14px;
+  color: var(--hr-muted-gray, #6F686B);
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Feedback Banner
+   -------------------------------------------------------------------------- */
+.hr-apps-banner {
+  background-color: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #065F46;
+  border-radius: var(--hr-radius-md, 10px);
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);
+  animation: bannerSlideIn 0.25s ease-out;
+}
+
+.hr-apps-banner.banner-reject {
+  background-color: #FEF2F2;
+  border-color: #FECACA;
+  color: #991B1B;
+}
+
+/* --------------------------------------------------------------------------
+   Statistics Row (4 Cards)
+   -------------------------------------------------------------------------- */
+.hr-apps-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.hr-apps-stat-card {
+  background: #FFFFFF;
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  border-radius: var(--hr-radius-lg, 14px);
+  padding: 20px 22px;
+  box-shadow: var(--hr-shadow-card, 0 4px 12px rgba(67, 44, 69, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.hr-apps-stat-card:hover {
+  box-shadow: var(--hr-shadow-hover, 0 8px 24px rgba(67, 44, 69, 0.10));
+  transform: translateY(-2px);
+  border-color: rgba(103, 64, 95, 0.2);
+}
+
+.hr-apps-stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hr-apps-stat-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hr-muted-gray, #6F686B);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.hr-apps-stat-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--hr-radius-md, 10px);
+  background-color: var(--hr-soft-lavender, #F0EAF0);
+  color: var(--hr-primary-plum, #67405F);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hr-apps-stat-icon-pending {
+  background-color: #F1EFEA;
+  color: #4A464B;
+}
+
+.hr-apps-stat-icon-shortlisted {
+  background-color: var(--hr-soft-lavender, #F0EAF0);
+  color: var(--hr-primary-plum, #67405F);
+}
+
+.hr-apps-stat-icon-rejected {
+  background-color: #FEE2E2;
+  color: #991B1B;
+}
+
+.hr-apps-stat-value {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--hr-deep-plum, #432C45);
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.hr-apps-stat-subtext {
+  font-size: 11px;
+  color: var(--hr-muted-gray, #6F686B);
+}
+
+/* --------------------------------------------------------------------------
+   Search & Filter Toolbar
+   -------------------------------------------------------------------------- */
+.hr-apps-filter-card {
+  background: #FFFFFF;
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  border-radius: var(--hr-radius-xl, 18px);
+  padding: 20px 24px;
+  box-shadow: var(--hr-shadow-card, 0 4px 12px rgba(67, 44, 69, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hr-apps-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.hr-apps-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 280px;
+  max-width: 440px;
+}
+
+.hr-apps-search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--hr-muted-gray, #6F686B);
+  pointer-events: none;
+}
+
+.hr-apps-search-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 36px 0 40px;
+  background-color: var(--hr-warm-gray, #F7F5F2);
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  border-radius: var(--hr-radius-md, 10px);
+  font-size: 13px;
+  color: var(--hr-charcoal, #252326);
+  font-family: inherit;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.hr-apps-search-input:focus {
+  background-color: #FFFFFF;
+  border-color: var(--hr-primary-plum, #67405F);
+  box-shadow: 0 0 0 3px rgba(103, 64, 95, 0.12);
+}
+
+.hr-apps-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hr-apps-select-control {
+  height: 40px;
+  padding: 0 12px;
+  background-color: var(--hr-warm-gray, #F7F5F2);
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  border-radius: var(--hr-radius-md, 10px);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--hr-charcoal, #252326);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hr-apps-select-control:focus {
+  border-color: var(--hr-primary-plum, #67405F);
+  background-color: #FFFFFF;
+}
+
+.hr-apps-status-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--hr-warm-gray, #F7F5F2);
+  padding: 3px;
+  border-radius: var(--hr-radius-md, 10px);
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+}
+
+.hr-apps-status-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hr-muted-gray, #6F686B);
+  padding: 6px 12px;
+  border-radius: var(--hr-radius-sm, 6px);
+  cursor: pointer;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+
+.hr-apps-status-btn:hover {
+  color: var(--hr-primary-plum, #67405F);
+}
+
+.hr-apps-status-btn.active {
+  background-color: var(--hr-deep-plum, #432C45);
+  color: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(67, 44, 69, 0.2);
+}
+
+.hr-apps-toolbar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--hr-warm-border, #E8E3DD);
+  font-size: 13px;
+  color: var(--hr-muted-gray, #6F686B);
+}
+
+/* --------------------------------------------------------------------------
+   Applications Cards Grid
+   -------------------------------------------------------------------------- */
+.hr-apps-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.hr-app-card {
+  background: #FFFFFF;
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  border-radius: var(--hr-radius-xl, 18px);
+  padding: 24px;
+  box-shadow: var(--hr-shadow-card, 0 4px 12px rgba(67, 44, 69, 0.05));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  transition: all 0.22s ease;
+  position: relative;
+}
+
+.hr-app-card:hover {
+  box-shadow: var(--hr-shadow-hover, 0 8px 24px rgba(67, 44, 69, 0.10));
+  border-color: rgba(103, 64, 95, 0.25);
+  transform: translateY(-2px);
+}
+
+.hr-app-card.card-shortlisted {
+  border-left: 4px solid var(--hr-primary-plum, #67405F);
+}
+
+.hr-app-card.card-rejected {
+  border-left: 4px solid #DC2626;
+  opacity: 0.88;
+}
+
+.hr-app-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hr-student-lead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hr-student-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--hr-deep-plum, #432C45), var(--hr-primary-plum, #67405F));
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(67, 44, 69, 0.15);
+  flex-shrink: 0;
+}
+
+.hr-student-headings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hr-student-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--hr-deep-plum, #432C45);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.hr-student-email {
+  font-size: 12px;
+  color: var(--hr-muted-gray, #6F686B);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Status Badges */
+.hr-app-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-pending {
+  background-color: #F1EFEA;
+  color: #4A464B;
+  border: 1px solid #E8E4DF;
+}
+
+.badge-shortlisted {
+  background-color: var(--hr-soft-lavender, #F0EAF0);
+  color: var(--hr-primary-plum, #67405F);
+  border: 1px solid rgba(103, 64, 95, 0.22);
+}
+
+.badge-rejected {
+  background-color: #FEE2E2;
+  color: #991B1B;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* Internship Meta Row */
+.hr-app-role-box {
+  background-color: var(--hr-warm-gray, #F7F5F2);
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  border-radius: var(--hr-radius-md, 10px);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hr-app-role-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hr-app-role-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hr-deep-plum, #432C45);
+}
+
+.hr-app-date-meta {
+  font-size: 11px;
+  color: var(--hr-muted-gray, #6F686B);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Skills Chips */
+.hr-app-skills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hr-app-skill-chip {
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #FFFFFF;
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  color: var(--hr-charcoal, #252326);
+  padding: 3px 8px;
+  border-radius: var(--hr-radius-sm, 6px);
+}
+
+/* Card Actions */
+.hr-app-actions-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--hr-warm-border, #E8E3DD);
+  padding-top: 14px;
+  gap: 10px;
+}
+
+.hr-app-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.hr-btn-action-view {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--hr-radius-md, 10px);
+  background-color: #FFFFFF;
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  color: var(--hr-deep-plum, #432C45);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.hr-btn-action-view:hover {
+  background-color: var(--hr-warm-gray, #F7F5F2);
+  border-color: var(--hr-primary-plum, #67405F);
+  color: var(--hr-primary-plum, #67405F);
+}
+
+.hr-btn-action-shortlist {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--hr-radius-md, 10px);
+  background-color: var(--hr-primary-plum, #67405F);
+  border: 1px solid transparent;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.hr-btn-action-shortlist:hover {
+  background-color: var(--hr-primary-hover, #54334E);
+  box-shadow: 0 2px 8px rgba(103, 64, 95, 0.25);
+}
+
+.hr-btn-action-reject {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--hr-radius-md, 10px);
+  background-color: #FFFFFF;
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  color: #991B1B;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.hr-btn-action-reject:hover {
+  background-color: #FEE2E2;
+  border-color: #FECACA;
+}
+
+/* --------------------------------------------------------------------------
+   Detail Modal Window
+   -------------------------------------------------------------------------- */
+.hr-app-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hr-app-detail-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hr-deep-plum, #432C45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--hr-warm-border, #E8E3DD);
+  padding-bottom: 6px;
+}
+
+.hr-doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: var(--hr-warm-gray, #F7F5F2);
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  border-radius: var(--hr-radius-md, 10px);
+  gap: 12px;
+}
+
+.hr-doc-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hr-charcoal, #252326);
+}
+
+.hr-doc-view-btn {
+  background-color: #FFFFFF;
+  border: 1px solid var(--hr-warm-border, #E8E3DD);
+  color: var(--hr-primary-plum, #67405F);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--hr-radius-sm, 6px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hr-doc-view-btn:hover {
+  background-color: var(--hr-primary-plum, #67405F);
+  color: #FFFFFF;
+  border-color: var(--hr-primary-plum, #67405F);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Design
+   -------------------------------------------------------------------------- */
+@media (max-width: 1100px) {
+  .hr-apps-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hr-apps-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .hr-apps-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-apps-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hr-apps-search-wrap {
+    max-width: 100%;
+  }
+
+  .hr-apps-filter-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hr-apps-select-control {
+    width: 100%;
+  }
+
+  .hr-apps-status-pills {
+    overflow-x: auto;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .hr-app-actions-footer {
+    flex-direction: column;
+  }
+
+  .hr-app-action-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .hr-btn-action-view,
+  .hr-btn-action-shortlist,
+  .hr-btn-action-reject {
+    width: 100%;
+  }
+}
