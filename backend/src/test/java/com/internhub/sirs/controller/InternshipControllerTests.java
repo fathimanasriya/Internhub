@@ -2,7 +2,9 @@ package com.internhub.sirs.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internhub.sirs.dto.InternshipRequest;
+import com.internhub.sirs.model.HrUser;
 import com.internhub.sirs.model.Internship;
+import com.internhub.sirs.repository.HrUserRepository;
 import com.internhub.sirs.service.InternshipService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 
 import static org.hamcrest.Matchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -32,10 +35,14 @@ class InternshipControllerTests {
     @Autowired
     private InternshipService internshipService;
 
+    @Autowired
+    private HrUserRepository hrUserRepository;
+
     @BeforeEach
     void setUp() {
         // Only clears the internships table, leaving student records intact
         internshipService.clearAll();
+        hrUserRepository.deleteAll();
     }
 
     @Test
@@ -406,5 +413,107 @@ class InternshipControllerTests {
         mockMvc.perform(get("/api/internships"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)));
+    }
+
+    @Test
+    @DisplayName("GET /api/internships serializes cleanly when internship has an associated HrUser")
+    void testGetAllInternships_withAssociatedHrUser_serializesCleanly() throws Exception {
+        HrUser hrUser = hrUserRepository.save(HrUser.builder()
+                .hrName("Recruiter Alex")
+                .officialEmail("alex@techcorp.com")
+                .passwordHash("secretHash")
+                .phone("9876543210")
+                .companyName("TechCorp")
+                .companyLocation("San Francisco")
+                .role("ROLE_HR")
+                .build());
+
+        internshipService.createInternship(InternshipRequest.builder()
+                .companyName("TechCorp")
+                .role("Cloud Engineer Intern")
+                .location("San Francisco")
+                .description("Cloud platform development")
+                .eligibility("BS Computer Science")
+                .applicationDeadline(LocalDate.now().plusMonths(2))
+                .build(), hrUser.getOfficialEmail());
+
+        mockMvc.perform(get("/api/internships"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].companyName", is("TechCorp")))
+                .andExpect(jsonPath("$[0].role", is("Cloud Engineer Intern")))
+                .andExpect(jsonPath("$[0].postedByHr.officialEmail", is("alex@techcorp.com")))
+                .andExpect(jsonPath("$[0].postedByHr.passwordHash").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/internships/{id} by owning HR deletes internship and removes it from GET /api/internships")
+    void testDeleteInternship_byOwner_removesFromListings() throws Exception {
+        HrUser hrUser = hrUserRepository.save(HrUser.builder()
+                .hrName("HR Bob")
+                .officialEmail("bob@corp.com")
+                .passwordHash("secretHash")
+                .phone("9876543211")
+                .companyName("BobCorp")
+                .companyLocation("Boston")
+                .role("ROLE_HR")
+                .build());
+
+        Internship internship = internshipService.createInternship(InternshipRequest.builder()
+                .companyName("BobCorp")
+                .role("QA Intern")
+                .location("Boston")
+                .description("Automation testing")
+                .eligibility("Any")
+                .applicationDeadline(LocalDate.now().plusMonths(1))
+                .build(), "bob@corp.com");
+
+        // Verify it is visible
+        mockMvc.perform(get("/api/internships"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)));
+
+        // Delete as owning HR
+        mockMvc.perform(delete("/api/internships/" + internship.getId())
+                .with(user("bob@corp.com").roles("HR")))
+                .andExpect(status().isNoContent());
+
+        // Verify it is gone from general listings
+        mockMvc.perform(get("/api/internships"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/internships/{id} by non-owner HR returns 403 Forbidden")
+    void testDeleteInternship_byNonOwner_returnsForbidden() throws Exception {
+        HrUser owner = hrUserRepository.save(HrUser.builder()
+                .hrName("Owner HR")
+                .officialEmail("owner@corp.com")
+                .passwordHash("secretHash")
+                .phone("9876543212")
+                .companyName("OwnerCorp")
+                .companyLocation("Chicago")
+                .role("ROLE_HR")
+                .build());
+
+        Internship internship = internshipService.createInternship(InternshipRequest.builder()
+                .companyName("OwnerCorp")
+                .role("DevOps Intern")
+                .location("Chicago")
+                .description("CI/CD pipeline")
+                .eligibility("Any")
+                .applicationDeadline(LocalDate.now().plusMonths(1))
+                .build(), "owner@corp.com");
+
+        // Attempt delete by another HR
+        mockMvc.perform(delete("/api/internships/" + internship.getId())
+                .with(user("intruder@corp.com").roles("HR")))
+                .andExpect(status().isForbidden());
+
+        // Verify internship still exists
+        mockMvc.perform(get("/api/internships/" + internship.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role", is("DevOps Intern")));
     }
 }

@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +28,17 @@ import java.util.List;
 public class StudentController {
 
     private final StudentService studentService;
+
+    /**
+     * GET /api/students/me - Retrieve authenticated student profile.
+     */
+    @GetMapping("/me")
+    @Operation(summary = "Get current student profile", description = "Retrieves the profile of the currently authenticated student via Bearer token.")
+    public ResponseEntity<Student> getCurrentStudent(Authentication authentication) {
+        String email = authentication.getName();
+        Student student = studentService.getStudentByEmail(email);
+        return ResponseEntity.ok(student);
+    }
 
     /**
      * POST /api/students - Create a new student.

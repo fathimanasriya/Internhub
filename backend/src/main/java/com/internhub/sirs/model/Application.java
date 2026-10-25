@@ -40,20 +40,18 @@ public class Application {
 
     /**
      * The student who applied.
-     * FetchType.LAZY: the Student row is only loaded from the DB when you actually
-     * access application.getStudent() — saves unnecessary queries.
-     * @JsonIgnoreProperties prevents Jackson from trying to serialise the entire
-     * Hibernate proxy object, which would cause errors or infinite loops.
+     * FetchType.EAGER ensures safe serialization with open-in-view=false.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "student_id", nullable = false)
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "passwordHash"})
     private Student student;
 
     /**
      * The internship being applied for.
+     * FetchType.EAGER ensures safe serialization with open-in-view=false.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "internship_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Internship internship;

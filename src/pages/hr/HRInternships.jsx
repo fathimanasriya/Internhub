@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import Sidebar from '../../components/hr/Sidebar'
 import Topbar from '../../components/hr/Topbar'
+import { getMyInternships, createInternship, updateInternship, deleteInternship, getHrProfile, getHrAuthToken } from '../../services/api'
 import './HRInternships.css'
 
 const DEMO_INTERNSHIPS = [
@@ -111,18 +112,66 @@ function HRInternships() {
   const [bannerMessage, setBannerMessage] = useState('')
 
   // Company and HR Recruiter info
-  const [hrProfile] = useState(() => {
+  const [hrProfile, setHrProfile] = useState(() => {
     try {
-      const stored = localStorage.getItem('internhubHRProfile')
+      const stored = localStorage.getItem('internhubHRProfile') || localStorage.getItem('internhubHR')
       if (stored) return JSON.parse(stored)
     } catch (err) {
       console.error('Error reading hrProfile:', err)
     }
     return {
-      hrName: 'Sarah Mitchell',
-      companyName: 'NovaTech Labs Pvt Ltd',
+      hrName: 'HR Recruiter',
+      companyName: 'Enterprise Partner',
     }
   })
+
+  // Hydrate HR profile and load HR postings from backend /api/internships/my
+  useEffect(() => {
+    const token = getHrAuthToken()
+    if (!token) return
+
+    getHrProfile()
+      .then((p) => {
+        if (p) {
+          setHrProfile((prev) => ({
+            ...prev,
+            hrName: p.hrName || prev.hrName,
+            companyName: p.companyName || prev.companyName,
+          }))
+        }
+      })
+      .catch((err) => console.warn('Could not load HR profile:', err.message))
+
+    getMyInternships()
+      .then((backendList) => {
+        if (Array.isArray(backendList)) {
+          const mapped = backendList.map((item) => ({
+            id: item.id,
+            title: item.role,
+            role: item.role,
+            company: item.companyName,
+            companyName: item.companyName,
+            department: 'Software & Engineering',
+            type: item.location.toLowerCase().includes('remote') ? 'Remote' : (item.location.toLowerCase().includes('hybrid') ? 'Hybrid' : 'On-site'),
+            location: item.location,
+            duration: '3 Months',
+            stipend: 'Competitive',
+            openings: 1,
+            applications: 0,
+            status: new Date(item.applicationDeadline) < new Date(new Date().toDateString()) ? 'Closed' : 'Active',
+            deadline: item.applicationDeadline,
+            skills: item.eligibility || '',
+            description: item.description,
+            responsibilities: item.description,
+            requirements: item.eligibility,
+          }))
+          setInternships(mapped)
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch HR postings from /api/internships/my:', err.message)
+      })
+  }, [])
 
   // Internships list state loaded from localStorage with demo fallback
   const [internships, setInternships] = useState(() => {
@@ -188,28 +237,47 @@ function HRInternships() {
     }))
   }
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault()
 
-    if (isEditing && editTargetId) {
-      setInternships((prev) =>
-        prev.map((item) =>
-          item.id === editTargetId
-            ? { ...formData, id: editTargetId }
-            : item
+    const payload = {
+      companyName: hrProfile.companyName || formData.company || 'NovaTech Labs Pvt Ltd',
+      role: formData.title || formData.role || 'Software Intern',
+      location: formData.location || 'Remote',
+      description: formData.description || formData.responsibilities || 'Role details',
+      eligibility: formData.requirements || formData.skills || 'Any engineering degree',
+      applicationDeadline: formData.deadline || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    }
+
+    try {
+      if (isEditing && editTargetId) {
+        if (typeof editTargetId === 'number' || !String(editTargetId).startsWith('int-')) {
+          await updateInternship(editTargetId, payload)
+        }
+        setInternships((prev) =>
+          prev.map((item) =>
+            item.id === editTargetId ? { ...formData, id: editTargetId } : item
+          )
         )
-      )
-      setBannerMessage('Internship updated successfully.')
-    } else {
-      const newInternship = {
-        ...formData,
-        id: `int-${Date.now()}`,
-        company: hrProfile.companyName || 'NovaTech Labs Pvt Ltd',
-        applications: 0,
-        status: 'Active',
+        setBannerMessage('Internship updated successfully in database.')
+      } else {
+        const created = await createInternship(payload)
+        const mappedCreated = {
+          ...formData,
+          id: created.id,
+          title: created.role,
+          company: created.companyName,
+          location: created.location,
+          deadline: created.applicationDeadline,
+          status: 'Active',
+          applications: 0,
+        }
+        setInternships((prev) => [mappedCreated, ...prev])
+        setBannerMessage('Internship published and saved to MySQL successfully.')
       }
-      setInternships((prev) => [newInternship, ...prev])
-      setBannerMessage('Internship published successfully.')
+    } catch (err) {
+      console.error('Failed to save internship to backend:', err)
+      setBannerMessage('Saved locally (Warning: backend returned ' + (err.message || 'error') + ')')
     }
 
     setActiveModal(null)
@@ -229,12 +297,21 @@ function HRInternships() {
     setBannerMessage('Internship reopened as Active.')
   }
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!activeModal || !activeModal.data) return
     const targetId = activeModal.data.id
-    setInternships((prev) => prev.filter((item) => item.id !== targetId))
+    try {
+      if (typeof targetId === 'number' || !String(targetId).startsWith('int-')) {
+        await deleteInternship(targetId)
+      }
+      setInternships((prev) => prev.filter((item) => item.id !== targetId))
+      setBannerMessage('Internship deleted successfully from database.')
+    } catch (err) {
+      console.error('Error deleting internship:', err)
+      alert(err.message || 'Failed to delete internship. You may only delete internships you own.')
+      return
+    }
     setActiveModal(null)
-    setBannerMessage('Internship deleted successfully.')
   }
 
   // Filtered internships

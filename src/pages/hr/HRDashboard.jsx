@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Briefcase,
   Users,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import Sidebar from '../../components/hr/Sidebar'
 import Topbar from '../../components/hr/Topbar'
+import { getHrProfile, getHrAuthToken, getHrApplications, getInternships } from '../../services/api'
 import './HRDashboard.css'
 
 /**
@@ -27,13 +28,59 @@ function HRDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeModal, setActiveModal] = useState(null) // null | { type: 'quickAction' | 'viewApplication' | 'manageInternship', data: any }
 
-  // 1. Recruiter Profile (Demo state)
-  const [hrInfo] = useState({
-    name: 'Sarah Jenkins',
-    initials: 'SJ',
-    company: 'TechNova Labs',
-    tier: 'Enterprise Recruiter',
-  })
+  // 1. Recruiter Profile (Loaded from localStorage or backend /api/hr/me)
+  const [hrInfo, setHrInfo] = useState(() => {
+    try {
+      const stored = localStorage.getItem('internhubHRProfile') || localStorage.getItem('internhubHR');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const name = parsed.hrName || parsed.name || 'HR Recruiter';
+        const company = parsed.companyName || parsed.company || 'Enterprise Partner';
+        const initials = name.trim().split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'HR';
+        return {
+          name,
+          initials,
+          company,
+          tier: parsed.designation || 'Enterprise Recruiter',
+        };
+      }
+    } catch (err) {
+      console.error('Error loading stored HR profile:', err);
+    }
+    return {
+      name: 'HR Recruiter',
+      initials: 'HR',
+      company: 'Enterprise Partner',
+      tier: 'Enterprise Recruiter',
+    };
+  });
+
+  useEffect(() => {
+    const token = getHrAuthToken();
+    if (!token) return;
+
+    let isMounted = true;
+    getHrProfile()
+      .then((profile) => {
+        if (!isMounted || !profile) return;
+        const name = profile.hrName || 'HR Recruiter';
+        const company = profile.companyName || 'Enterprise Partner';
+        const initials = name.trim().split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'HR';
+        setHrInfo({
+          name,
+          initials,
+          company,
+          tier: profile.designation || 'Enterprise Recruiter',
+        });
+      })
+      .catch((err) => {
+        console.warn('Could not load live HR profile:', err.message);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // 2. Statistics (Demo values per specification)
   const stats = [
@@ -95,7 +142,71 @@ function HRDashboard() {
     },
   ]
 
-  // 4. Demo Recent Applications Data
+  // Fetch live HR data from backend
+  useEffect(() => {
+    const token = getHrAuthToken()
+    if (!token) return
+
+    let isMounted = true
+
+    // Fetch real applications
+    getHrApplications()
+      .then((backendApps) => {
+        if (!isMounted || !Array.isArray(backendApps) || backendApps.length === 0) return
+        const mapped = backendApps.map((item) => {
+          const student = item.student || {}
+          const internship = item.internship || {}
+          const name = student.name || 'Student Applicant'
+          const initials = name.trim().split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'ST'
+          let dateStr = 'Recently'
+          if (item.appliedDate) {
+            try {
+              dateStr = new Date(item.appliedDate).toLocaleDateString('en-US', {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+              })
+            } catch {
+              dateStr = String(item.appliedDate)
+            }
+          }
+
+          let displayStatus = 'Under Review'
+          if (item.status === 'APPLIED') displayStatus = 'Applied'
+          else if (item.status === 'SHORTLISTED') displayStatus = 'Selected'
+          else if (item.status === 'REJECTED') displayStatus = 'Rejected'
+
+          let skillsArr = ['React', 'Java']
+          if (student.skills) {
+            skillsArr = Array.isArray(student.skills)
+              ? student.skills
+              : student.skills.split(',').map((s) => s.trim()).filter(Boolean)
+          }
+
+          return {
+            id: item.id,
+            studentName: name,
+            avatarInitials: initials,
+            email: student.email || '',
+            university: `${student.college || 'University'} • ${student.course || student.department || 'Student'}`,
+            internship: internship.role || 'Internship Role',
+            department: student.department || 'Engineering',
+            appliedDate: dateStr,
+            status: displayStatus,
+            skills: skillsArr,
+            gpa: '8.5 / 10',
+          }
+        })
+        setApplications(mapped)
+      })
+      .catch((err) => {
+        console.warn('Could not load HR applications for dashboard:', err.message)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
   const [applications, setApplications] = useState([
     {
       id: 'app-01',

@@ -1,5 +1,31 @@
 import { useState, useRef, useEffect } from 'react'
-import { Menu, Bell, Search, CheckCircle, Clock, UserPlus, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Menu, Bell, Search, CheckCircle, Clock, UserPlus, X, CheckCheck } from 'lucide-react'
+import {
+  getHrNotifications,
+  markHrNotificationRead,
+  markAllHrNotificationsRead,
+  getHrAuthToken,
+} from '../../services/api'
+
+function formatTimeAgo(dateString) {
+  if (!dateString) return 'Just now'
+  try {
+    const diffMs = Date.now() - new Date(dateString).getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHr = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHr / 24)
+
+    if (diffMin < 1) return 'Just now'
+    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffHr < 24) return `${diffHr}h ago`
+    if (diffDay < 7) return `${diffDay}d ago`
+    return new Date(dateString).toLocaleDateString()
+  } catch {
+    return 'Recently'
+  }
+}
 
 /**
  * HR Topbar Component
@@ -13,33 +39,63 @@ function Topbar({
   title = 'HR Dashboard',
   onSearch,
 }) {
+  const navigate = useNavigate()
   const [showNotifications, setShowNotifications] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [notifications, setNotifications] = useState([])
   const dropdownRef = useRef(null)
 
-  const notifications = [
-    {
-      id: 1,
-      icon: UserPlus,
-      text: 'Rohan Sharma applied for Software Development Intern',
-      time: '12m ago',
-      unread: true,
-    },
-    {
-      id: 2,
-      icon: CheckCircle,
-      text: 'Priya Patel accepted offer for UI/UX Design Intern',
-      time: '2h ago',
-      unread: true,
-    },
-    {
-      id: 3,
-      icon: Clock,
-      text: 'Milestone 2 review pending for Cloud & DevOps cohort',
-      time: '5h ago',
-      unread: false,
-    },
-  ]
+  const fetchNotifications = () => {
+    const token = getHrAuthToken()
+    if (!token) return
+
+    getHrNotifications()
+      .then((data) => {
+        if (!Array.isArray(data)) return
+        setNotifications(data)
+      })
+      .catch((err) => {
+        console.warn('Could not load HR notifications:', err.message)
+      })
+  }
+
+  useEffect(() => {
+    fetchNotifications()
+  }, [])
+
+  useEffect(() => {
+    if (showNotifications) {
+      fetchNotifications()
+    }
+  }, [showNotifications])
+
+  const unreadCount = notifications.filter((n) => !n.isRead && !n.read).length
+
+  const handleNotificationClick = async (notif) => {
+    if (!notif.isRead && !notif.read) {
+      try {
+        await markHrNotificationRead(notif.id)
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true, read: true } : n))
+        )
+      } catch (err) {
+        console.warn('Could not mark HR notification read:', err.message)
+      }
+    }
+    setShowNotifications(false)
+    navigate('/hr/applications')
+  }
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllHrNotificationsRead()
+      setNotifications((prev) =>
+        prev.map((n) => ({ ...n, isRead: true, read: true }))
+      )
+    } catch (err) {
+      console.warn('Could not mark all HR notifications read:', err.message)
+    }
+  }
 
   // Close notifications on outside click
   useEffect(() => {
@@ -122,7 +178,7 @@ function Topbar({
             aria-expanded={showNotifications}
           >
             <Bell size={19} />
-            <span className="hr-notification-indicator" />
+            {unreadCount > 0 && <span className="hr-notification-indicator" />}
           </button>
 
           {showNotifications && (
@@ -132,26 +188,56 @@ function Topbar({
                   <span className="hr-dropdown-title">Activity Alerts</span>
                   <span className="hr-dropdown-subtitle">HR & Recruitment feed</span>
                 </div>
-                <span className="hr-dropdown-badge">2 new</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="hr-dropdown-badge">{unreadCount} unread</span>
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllRead}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--hr-primary-plum, #67405F)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                      }}
+                      title="Mark all as read"
+                    >
+                      <CheckCheck size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
               <ul className="hr-dropdown-list">
-                {notifications.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <li
-                      key={item.id}
-                      className={`hr-dropdown-item ${item.unread ? 'item-unread' : ''}`}
-                    >
-                      <div className="hr-notif-icon">
-                        <Icon size={15} />
-                      </div>
-                      <div className="hr-notif-content">
-                        <p className="hr-notif-text">{item.text}</p>
-                        <span className="hr-notif-time">{item.time}</span>
-                      </div>
-                    </li>
-                  )
-                })}
+                {notifications.length > 0 ? (
+                  notifications.map((item) => {
+                    const isUnread = !item.isRead && !item.read
+                    return (
+                      <li
+                        key={item.id}
+                        className={`hr-dropdown-item ${isUnread ? 'item-unread' : ''}`}
+                        onClick={() => handleNotificationClick(item)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="hr-notif-icon">
+                          <UserPlus size={15} />
+                        </div>
+                        <div className="hr-notif-content">
+                          <p className="hr-notif-text" style={{ fontWeight: isUnread ? 600 : 400 }}>
+                            <strong>{item.title}: </strong>
+                            {item.message}
+                          </p>
+                          <span className="hr-notif-time">{formatTimeAgo(item.createdAt)}</span>
+                        </div>
+                      </li>
+                    )
+                  })
+                ) : (
+                  <li className="hr-dropdown-item" style={{ textAlign: 'center', color: '#888', padding: '16px' }}>
+                    No alerts yet
+                  </li>
+                )}
               </ul>
             </div>
           )}

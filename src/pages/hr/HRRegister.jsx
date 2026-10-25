@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { registerHr, ApiError } from '../../services/api'
 import '../auth.css'
 
 function HRRegister() {
@@ -16,6 +17,8 @@ function HRRegister() {
     password: '',
     confirmPassword: '',
   })
+  const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -23,15 +26,55 @@ function HRRegister() {
       ...prev,
       [name]: value,
     }))
+    if (errorMessage) {
+      setErrorMessage('')
+    }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setErrorMessage('')
+
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!')
+      setErrorMessage('Passwords do not match!')
       return
     }
-    navigate('/hr/dashboard')
+
+    if (formData.password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters long.')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      await registerHr({
+        hrName: formData.hrName.trim(),
+        officialEmail: formData.officialEmail.trim().toLowerCase(),
+        password: formData.password,
+        phone: formData.phone.trim(),
+        companyName: formData.companyName.trim(),
+        companyLocation: formData.companyLocation.trim(),
+        industry: formData.industry.trim(),
+        designation: formData.designation.trim(),
+        employeeId: formData.employeeId.trim(),
+      })
+
+      navigate('/hr/dashboard')
+    } catch (err) {
+      console.error('HR registration error:', err)
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
+          setErrorMessage('An HR account with this official work email already exists. Please log in.')
+        } else {
+          setErrorMessage(err.message || 'Registration failed. Please check your inputs.')
+        }
+      } else {
+        setErrorMessage('Unable to connect to server. Please verify backend is running.')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -56,6 +99,24 @@ function HRRegister() {
             Register your organization on InternHub to publish verified
             internships, discover ambitious student talent, and streamline candidate hiring.
           </p>
+
+          {errorMessage && (
+            <div
+              style={{
+                backgroundColor: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #f87171',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                fontSize: '0.9rem',
+                lineHeight: 1.4,
+              }}
+              role="alert"
+            >
+              {errorMessage}
+            </div>
+          )}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-grid-2">
@@ -205,7 +266,7 @@ function HRRegister() {
                   type="password"
                   name="password"
                   className="form-input"
-                  placeholder="Create a secure password"
+                  placeholder="Create a secure password (min 6 characters)"
                   value={formData.password}
                   onChange={handleChange}
                   required
@@ -231,8 +292,8 @@ function HRRegister() {
             </div>
 
             {/* Register Button */}
-            <button type="submit" className="auth-submit-btn">
-              Register Company Account →
+            <button type="submit" className="auth-submit-btn" disabled={loading}>
+              {loading ? 'Creating HR Account...' : 'Register Company Account →'}
             </button>
           </form>
 

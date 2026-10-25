@@ -10,6 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +34,7 @@ public class ApplicationController {
     // ------------------------------------------------------------------ //
 
     @PostMapping
+    @PreAuthorize("hasRole('STUDENT') or isAnonymous()")
     @Operation(
         summary = "Submit an internship application",
         description = """
@@ -45,8 +48,11 @@ public class ApplicationController {
             - The initial status is always set to APPLIED automatically.
             """
     )
-    public ResponseEntity<Application> apply(@Valid @RequestBody ApplicationRequest request) {
-        Application saved = applicationService.apply(request);
+    public ResponseEntity<Application> apply(
+            @Valid @RequestBody ApplicationRequest request,
+            Authentication authentication) {
+        String studentEmail = (authentication != null && authentication.isAuthenticated()) ? authentication.getName() : null;
+        Application saved = applicationService.apply(request, studentEmail);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
@@ -74,6 +80,21 @@ public class ApplicationController {
     )
     public ResponseEntity<Application> findById(@PathVariable Long id) {
         return ResponseEntity.ok(applicationService.findById(id));
+    }
+
+    // ------------------------------------------------------------------ //
+    //  GET /api/applications/hr/my  — get applications for HR's postings  //
+    // ------------------------------------------------------------------ //
+
+    @GetMapping("/hr/my")
+    @PreAuthorize("hasRole('HR')")
+    @Operation(
+        summary = "Get all applications for current HR recruiter",
+        description = "Returns every application received for internships posted by the authenticated HR user."
+    )
+    public ResponseEntity<List<Application>> findMyHrApplications(Authentication authentication) {
+        String hrEmail = (authentication != null) ? authentication.getName() : null;
+        return ResponseEntity.ok(applicationService.findByHrEmail(hrEmail));
     }
 
     // ------------------------------------------------------------------ //
@@ -107,22 +128,21 @@ public class ApplicationController {
     // ------------------------------------------------------------------ //
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasRole('HR') or isAnonymous()")
     @Operation(
         summary = "Update application status",
         description = """
             Updates the status of an existing application.
 
             Valid status values: APPLIED, UNDER_REVIEW, SHORTLISTED, REJECTED
-
-            ⚠️ NOTE: Authentication / authorisation is NOT implemented yet.
-            In a future milestone, this endpoint should be restricted so that only
-            HR or Admin users can change the status of an application.
             """
     )
     public ResponseEntity<Application> updateStatus(
             @PathVariable Long id,
-            @Valid @RequestBody ApplicationStatusUpdateRequest request) {
-        Application updated = applicationService.updateStatus(id, request.getStatus());
+            @Valid @RequestBody ApplicationStatusUpdateRequest request,
+            Authentication authentication) {
+        String hrEmail = (authentication != null && authentication.isAuthenticated()) ? authentication.getName() : null;
+        Application updated = applicationService.updateStatus(id, request.getStatus(), hrEmail);
         return ResponseEntity.ok(updated);
     }
 

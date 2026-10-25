@@ -4,6 +4,8 @@ import com.internhub.sirs.dto.StudentRequest;
 import com.internhub.sirs.exception.DuplicateEmailException;
 import com.internhub.sirs.exception.ResourceNotFoundException;
 import com.internhub.sirs.model.Student;
+import com.internhub.sirs.repository.ApplicationRepository;
+import com.internhub.sirs.repository.NotificationRepository;
 import com.internhub.sirs.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,6 +24,8 @@ import java.util.List;
 public class StudentService {
 
     private final StudentRepository studentRepository;
+    private final ApplicationRepository applicationRepository;
+    private final NotificationRepository notificationRepository;
 
     /**
      * Retrieves all registered students from the database.
@@ -47,13 +51,22 @@ public class StudentService {
     }
 
     /**
+     * Retrieves a single student by their email address.
+     */
+    @Transactional(readOnly = true)
+    public Student getStudentByEmail(String email) {
+        return studentRepository.findByEmail(email.trim().toLowerCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with email: " + email));
+    }
+
+    /**
      * Creates and persists a new student record in the database.
      *
      * @param request validated student creation request
      * @return the persisted Student entity with generated ID
      */
     public Student createStudent(StudentRequest request) {
-        String trimmedEmail = request.getEmail().trim();
+        String trimmedEmail = request.getEmail().trim().toLowerCase();
 
         if (studentRepository.existsByEmail(trimmedEmail)) {
             throw new DuplicateEmailException(trimmedEmail);
@@ -63,6 +76,7 @@ public class StudentService {
                 .name(request.getName().trim())
                 .email(trimmedEmail)
                 .preferredRole(request.getPreferredRole().trim())
+                .role("ROLE_STUDENT")
                 .build();
 
         try {
@@ -84,7 +98,7 @@ public class StudentService {
         Student existing = studentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + id));
 
-        String trimmedEmail = request.getEmail().trim();
+        String trimmedEmail = request.getEmail().trim().toLowerCase();
 
         // If email is changing, verify the new email is not already used by another student
         if (!existing.getEmail().equalsIgnoreCase(trimmedEmail) && studentRepository.existsByEmail(trimmedEmail)) {
@@ -116,10 +130,12 @@ public class StudentService {
     }
 
     /**
-     * Clears all student records from the database table.
-     * Used for isolating test cases.
+     * Clears all student records and dependent entities from the database table.
+     * Used for isolating test cases safely without FK violations.
      */
     public void clearAll() {
+        notificationRepository.deleteAll();
+        applicationRepository.deleteAll();
         studentRepository.deleteAll();
     }
 }

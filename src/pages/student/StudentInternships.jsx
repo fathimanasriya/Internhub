@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -15,13 +15,16 @@ import {
   Info,
   Briefcase,
   Sparkles,
+  Database,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react'
 import './StudentDashboard.css'
 import Sidebar from '../../components/student/Sidebar'
 import Topbar from '../../components/student/Topbar'
 import { mockStudentProfile } from '../../data/studentMockData'
 import { sampleInternships } from '../../data/internshipsData'
-
+import { getInternships } from '../../services/api'
 
 // Filter options as required
 const CATEGORIES = [
@@ -63,6 +66,68 @@ const DURATIONS = [
 ]
 
 /**
+ * Format a backend ISO date (YYYY-MM-DD) into a friendly presentation string.
+ */
+function formatDeadline(dateString) {
+  if (!dateString) return 'Flexible'
+  try {
+    const parts = dateString.split('-')
+    if (parts.length === 3) {
+      const year = parts[0]
+      const monthIndex = parseInt(parts[1], 10) - 1
+      const day = parts[2]
+      const monthNames = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ]
+      if (monthIndex >= 0 && monthIndex < 12) {
+        return `${day} ${monthNames[monthIndex]} ${year}`
+      }
+    }
+    return dateString
+  } catch {
+    return dateString
+  }
+}
+
+/**
+ * Map a backend Internship entity into the frontend card/modal display model.
+ */
+function mapBackendInternship(backendItem) {
+  const company = backendItem.companyName || 'Unknown Company'
+  const title = backendItem.role || 'Internship'
+  const location = backendItem.location || 'Remote'
+  const description = backendItem.description || ''
+  const eligibility = backendItem.eligibility || 'Open to all students'
+  const deadline = formatDeadline(backendItem.applicationDeadline)
+
+  return {
+    id: backendItem.id, // Real numeric backend ID
+    title,
+    company,
+    companyInitial: company.charAt(0).toUpperCase() || 'I',
+    category: 'Software Development',
+    location,
+    duration: '3 Months',
+    stipend: 0,
+    stipendText: 'Competitive / Performance Stipend',
+    skills: ['Java', 'Spring Boot', 'MySQL', 'REST API'],
+    postedDate: 'Recently',
+    deadline,
+    rawDeadline: backendItem.applicationDeadline,
+    vacancies: 3,
+    description,
+    responsibilities: [
+      'Contribute to production-ready software features and collaborate with engineering teams.',
+      'Participate in code reviews, daily stand-ups, and architectural discussions.',
+      'Write clean, documented, and testable code adhering to platform guidelines.',
+    ],
+    eligibility,
+    isLiveBackend: true,
+  }
+}
+
+/**
  * StudentInternships Component
  * Explore and filter verified internship listings with search, multifaceted filters,
  * detailed modal preview, and apply redirection.
@@ -71,6 +136,12 @@ const DURATIONS = [
 function StudentInternships() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Remote API State
+  const [internships, setInternships] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [dataSource, setDataSource] = useState('loading') // 'backend' | 'mock' | 'loading'
+  const [apiError, setApiError] = useState(null)
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('')
@@ -96,13 +167,42 @@ function StudentInternships() {
     return mockStudentProfile.name || 'Student'
   })
 
-  const initials = studentName
-    .trim()
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'ST'
+  const initials =
+    studentName
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'ST'
+
+  // Fetch internships from the Spring Boot backend
+  const fetchInternships = async () => {
+    setLoading(true)
+    setApiError(null)
+    try {
+      const data = await getInternships()
+      if (Array.isArray(data)) {
+        const mapped = data.map(mapBackendInternship)
+        setInternships(mapped)
+        setDataSource('backend')
+      } else {
+        throw new Error('Unexpected response format from backend')
+      }
+    } catch (err) {
+      console.warn('Backend API unavailable. Falling back to local mock data:', err)
+      setApiError(err.message || 'Could not connect to backend.')
+      // Use existing mock data only as an explicitly identified development fallback
+      setInternships(sampleInternships)
+      setDataSource('mock')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchInternships()
+  }, [])
 
   // Clear all filters handler
   const handleClearFilters = () => {
@@ -123,16 +223,16 @@ function StudentInternships() {
 
   // Filtered internships computation
   const filteredInternships = useMemo(() => {
-    return sampleInternships.filter((item) => {
+    return internships.filter((item) => {
       // 1. Search Query Filter (Title, Company, Skills, Category)
       if (searchQuery.trim()) {
         const query = searchQuery.trim().toLowerCase()
-        const matchesTitle = item.title.toLowerCase().includes(query)
-        const matchesCompany = item.company.toLowerCase().includes(query)
-        const matchesCategory = item.category.toLowerCase().includes(query)
-        const matchesSkills = item.skills.some((skill) =>
-          skill.toLowerCase().includes(query)
-        )
+        const matchesTitle = (item.title || '').toLowerCase().includes(query)
+        const matchesCompany = (item.company || '').toLowerCase().includes(query)
+        const matchesCategory = (item.category || '').toLowerCase().includes(query)
+        const matchesSkills = Array.isArray(item.skills)
+          ? item.skills.some((skill) => skill.toLowerCase().includes(query))
+          : false
         if (!matchesTitle && !matchesCompany && !matchesCategory && !matchesSkills) {
           return false
         }
@@ -145,7 +245,7 @@ function StudentInternships() {
 
       // 3. Location Filter (Handles composite locations like 'Bengaluru / Remote')
       if (locationFilter !== 'All Locations') {
-        const locLower = item.location.toLowerCase()
+        const locLower = (item.location || '').toLowerCase()
         const filterLower = locationFilter.toLowerCase()
         if (!locLower.includes(filterLower)) {
           return false
@@ -154,8 +254,9 @@ function StudentInternships() {
 
       // 4. Stipend Filter
       if (stipendFilter !== 'Any Stipend') {
+        const stipendText = (item.stipendText || '').toLowerCase()
         if (stipendFilter === 'Unpaid') {
-          if (item.stipend !== 0 && !item.stipendText.toLowerCase().includes('unpaid')) {
+          if (item.stipend !== 0 && !stipendText.includes('unpaid')) {
             return false
           }
         } else if (stipendFilter === '₹5,000+') {
@@ -169,14 +270,15 @@ function StudentInternships() {
 
       // 5. Duration Filter
       if (durationFilter !== 'Any Duration') {
-        if (!item.duration.toLowerCase().includes(durationFilter.toLowerCase())) {
+        const durationText = (item.duration || '').toLowerCase()
+        if (!durationText.includes(durationFilter.toLowerCase())) {
           return false
         }
       }
 
       return true
     })
-  }, [searchQuery, categoryFilter, locationFilter, stipendFilter, durationFilter])
+  }, [internships, searchQuery, categoryFilter, locationFilter, stipendFilter, durationFilter])
 
   // Apply Now handler: Navigates to Application Form with selected internship ID
   const handleApplyNow = (internship) => {
@@ -208,13 +310,66 @@ function StudentInternships() {
             </p>
           </div>
 
-          {/* Demo Data Disclaimer Banner */}
-          <div className="internships-demo-banner" role="note">
-            <Info size={18} className="demo-icon" />
-            <span>
-              <strong>Platform Demo:</strong> All internship listings displayed below are sample opportunities for demonstration. Positions, stipends, and company requirements are simulated.
-            </span>
-          </div>
+          {/* ================================================================
+              Data Source & Connectivity Status Banner
+              ================================================================ */}
+          {loading ? (
+            <div
+              className="internships-demo-banner"
+              role="status"
+              style={{
+                backgroundColor: 'var(--soft-lavender)',
+                borderColor: 'var(--primary-plum)',
+              }}
+            >
+              <Loader2 size={18} className="demo-icon" style={{ animation: 'spin 1s linear infinite' }} />
+              <span>Connecting to Spring Boot backend at <code>http://localhost:8080/api/internships</code>...</span>
+            </div>
+          ) : dataSource === 'backend' ? (
+            <div
+              className="internships-demo-banner"
+              role="status"
+              style={{
+                backgroundColor: '#EBF7EE',
+                borderColor: '#48A868',
+                color: '#1D6335',
+              }}
+            >
+              <Database size={18} style={{ color: '#2B8349', flexShrink: 0 }} />
+              <span>
+                <strong>Live Backend Connected:</strong> Displaying {internships.length} real internship opportunity {internships.length === 1 ? '' : 'records'} served directly from the Spring Boot MySQL database (<code>GET /api/internships</code>).
+              </span>
+            </div>
+          ) : (
+            <div
+              className="internships-demo-banner"
+              role="note"
+              style={{
+                backgroundColor: '#FFF7E6',
+                borderColor: '#FFB800',
+                color: '#8A5800',
+              }}
+            >
+              <AlertCircle size={18} style={{ color: '#D97706', flexShrink: 0 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                <span>
+                  <strong>Development Fallback Active:</strong> Unable to connect to backend (<code>http://localhost:8080/api</code>). Currently displaying local sample internships.
+                </span>
+                <span style={{ fontSize: '12px', opacity: 0.85 }}>
+                  {apiError} — Start the backend with <code>mvn spring-boot:run</code> to view live MySQL listings.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={fetchInternships}
+                className="btn btn-secondary"
+                style={{ padding: '4px 10px', fontSize: '12px', marginLeft: 'auto' }}
+                title="Retry connection to backend"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {/* ================================================================
               1 & 2. Search & Filters Card
@@ -372,7 +527,7 @@ function StudentInternships() {
                   <div className="internship-card-top">
                     <div className="internship-card-identity">
                       <div className="company-avatar-box" aria-hidden="true">
-                        {internship.companyInitial || internship.company.charAt(0)}
+                        {internship.companyInitial || (internship.company ? internship.company.charAt(0) : 'I')}
                       </div>
                       <div className="internship-title-group">
                         <span className="internship-card-company">{internship.company}</span>
@@ -429,11 +584,12 @@ function StudentInternships() {
 
                   {/* Skills Tags */}
                   <div className="skills-tags-container">
-                    {internship.skills.map((skill, index) => (
-                      <span key={index} className="skill-tag">
-                        {skill}
-                      </span>
-                    ))}
+                    {Array.isArray(internship.skills) &&
+                      internship.skills.map((skill, index) => (
+                        <span key={index} className="skill-tag">
+                          {skill}
+                        </span>
+                      ))}
                   </div>
 
                   {/* Footer Actions */}
@@ -582,11 +738,12 @@ function StudentInternships() {
             <div className="modal-skills-section">
               <h4 className="modal-section-title">Required Competencies</h4>
               <div className="skills-tags-container">
-                {selectedInternship.skills.map((skill, idx) => (
-                  <span key={idx} className="skill-tag">
-                    {skill}
-                  </span>
-                ))}
+                {Array.isArray(selectedInternship.skills) &&
+                  selectedInternship.skills.map((skill, idx) => (
+                    <span key={idx} className="skill-tag">
+                      {skill}
+                    </span>
+                  ))}
               </div>
             </div>
 

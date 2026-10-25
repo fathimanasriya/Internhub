@@ -19,7 +19,45 @@ import {
 } from 'lucide-react'
 import Sidebar from '../../components/hr/Sidebar'
 import Topbar from '../../components/hr/Topbar'
+import {
+  getHrApplications,
+  updateApplicationStatus,
+  getHrAuthToken,
+  getHrProfile,
+} from '../../services/api'
 import './HRApplications.css'
+
+function formatBackendDate(dateVal) {
+  if (!dateVal) return 'Recently'
+  try {
+    const d = new Date(dateVal)
+    if (isNaN(d.getTime())) return String(dateVal)
+    return d.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  } catch {
+    return String(dateVal)
+  }
+}
+
+function mapBackendStatusToFrontend(backendStatus) {
+  if (!backendStatus) return 'Pending'
+  const upper = backendStatus.toUpperCase()
+  if (upper === 'SHORTLISTED') return 'Shortlisted'
+  if (upper === 'REJECTED') return 'Rejected'
+  if (upper === 'UNDER_REVIEW') return 'Under Review'
+  return 'Pending'
+}
+
+function mapFrontendStatusToBackend(frontendStatus) {
+  const upper = (frontendStatus || '').toUpperCase()
+  if (upper === 'SHORTLISTED') return 'SHORTLISTED'
+  if (upper === 'REJECTED') return 'REJECTED'
+  if (upper === 'UNDER REVIEW') return 'UNDER_REVIEW'
+  return 'APPLIED'
+}
 
 // Initial 48 Demo Applications (20 Pending, 12 Shortlisted, 16 Rejected)
 const INITIAL_DEMO_APPLICATIONS = [
@@ -922,7 +960,7 @@ function HRApplications() {
     }
   })
 
-  // Applications list loaded from localStorage with initial demo fallback
+  // Applications list loaded from backend /api/applications/hr/my with initial demo fallback
   const [applications, setApplications] = useState(() => {
     try {
       const stored = localStorage.getItem('internhubHRApplications')
@@ -935,6 +973,63 @@ function HRApplications() {
     }
     return INITIAL_DEMO_APPLICATIONS
   })
+
+  // Fetch real applications from Spring Boot backend if HR is logged in
+  useEffect(() => {
+    const token = getHrAuthToken()
+    if (!token) return
+
+    let isMounted = true
+
+    getHrApplications()
+      .then((backendApps) => {
+        if (!isMounted || !Array.isArray(backendApps)) return
+        // If HR has backend applications, map them into the HRApplications UI format
+        if (backendApps.length > 0) {
+          const mapped = backendApps.map((item) => {
+            const student = item.student || {}
+            const internship = item.internship || {}
+            let skillsArr = []
+            if (student.skills) {
+              skillsArr = Array.isArray(student.skills)
+                ? student.skills
+                : student.skills.split(',').map((s) => s.trim()).filter(Boolean)
+            }
+            if (skillsArr.length === 0 && internship.requirements) {
+              skillsArr = [internship.requirements]
+            }
+
+            return {
+              id: item.id,
+              studentName: student.name || 'Student Applicant',
+              email: student.email || '',
+              phone: student.phone || 'Not provided',
+              college: student.college || 'Not provided',
+              degree: student.course || student.department || 'Undergraduate',
+              gradYear: student.year || '2026',
+              internship: internship.role || 'Internship Role',
+              department: student.department || 'Engineering',
+              type: internship.location?.toLowerCase().includes('remote') ? 'Remote' : 'On-site',
+              location: internship.location || 'Not specified',
+              duration: internship.duration || '3 Months',
+              appliedDate: formatBackendDate(item.appliedDate),
+              skills: skillsArr.length > 0 ? skillsArr : ['General'],
+              status: mapBackendStatusToFrontend(item.status),
+              notes: item.notes || '',
+              documents: ['Resume.pdf', 'ID Proof.pdf'],
+            }
+          })
+          setApplications(mapped)
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load backend HR applications, using local state:', err.message)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Synchronize applications to localStorage
   useEffect(() => {
@@ -972,7 +1067,15 @@ function HRApplications() {
         data: { ...activeModal.data, status: 'Shortlisted' },
       })
     }
+
+    // Persist status change to Spring Boot backend if numeric ID
+    if (typeof appId === 'number' || !isNaN(Number(appId))) {
+      updateApplicationStatus(appId, 'SHORTLISTED').catch((err) => {
+        console.warn('Could not sync status update to backend:', err.message)
+      })
+    }
   }
+
   const handleSelect = (appId) => {
     const selectedApplication = applications.find(
       (app) => app.id === appId
@@ -988,6 +1091,13 @@ function HRApplications() {
           : app
       )
     )
+
+    // Persist status change to backend (maps Selected to SHORTLISTED in DB)
+    if (typeof appId === 'number' || !isNaN(Number(appId))) {
+      updateApplicationStatus(appId, 'SHORTLISTED').catch((err) => {
+        console.warn('Could not sync selected status update to backend:', err.message)
+      })
+    }
 
     // 2. Get existing interns
     let existingInterns = []
@@ -1098,6 +1208,13 @@ function HRApplications() {
     )
     setBannerMessage({ text: 'Application rejected.', type: 'reject' })
     setActiveModal(null)
+
+    // Persist status change to Spring Boot backend if numeric ID
+    if (typeof targetId === 'number' || !isNaN(Number(targetId))) {
+      updateApplicationStatus(targetId, 'REJECTED').catch((err) => {
+        console.warn('Could not sync status update to backend:', err.message)
+      })
+    }
   }
 
   // Filtered applications list

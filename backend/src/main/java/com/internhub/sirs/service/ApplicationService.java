@@ -7,11 +7,14 @@ import com.internhub.sirs.model.Application;
 import com.internhub.sirs.model.ApplicationStatus;
 import com.internhub.sirs.model.Internship;
 import com.internhub.sirs.model.Student;
+import com.internhub.sirs.model.HrUser;
 import com.internhub.sirs.repository.ApplicationRepository;
+import com.internhub.sirs.repository.HrUserRepository;
 import com.internhub.sirs.repository.InternshipRepository;
 import com.internhub.sirs.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,32 +35,46 @@ public class ApplicationService {
     private final ApplicationRepository applicationRepository;
     private final StudentRepository     studentRepository;
     private final InternshipRepository  internshipRepository;
+    private final HrUserRepository      hrUserRepository;
+    private final NotificationService   notificationService;
 
     // ------------------------------------------------------------------ //
     //  CREATE                                                              //
     // ------------------------------------------------------------------ //
 
     /**
-     * Submits a new internship application.
+     * Submits a new internship application with optional authenticated student email verification.
      *
      * Business rules enforced here (in order):
-     *   1. Student must exist.
+     *   1. Student must exist (and match authenticated user if authenticated).
      *   2. Internship must exist.
      *   3. The internship application deadline must NOT be before today
      *      (applications ON the deadline date are still accepted).
      *   4. The student must not have already applied for this internship.
      *   5. Initial status is always APPLIED — clients cannot choose it.
      *
-     * @param request  validated DTO from the controller
-     * @return         the saved Application entity
+     * @param request       validated DTO from the controller
+     * @param studentEmail  optional authenticated student email
+     * @return              the saved Application entity
      */
     @Transactional
-    public Application apply(ApplicationRequest request) {
-
+    public Application apply(ApplicationRequest request, String studentEmail) {
         // 1. Verify the student exists
-        Student student = studentRepository.findById(request.getStudentId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Student not found with id: " + request.getStudentId()));
+        Student student;
+        if (studentEmail != null && !studentEmail.isBlank()) {
+            student = studentRepository.findByEmail(studentEmail.trim())
+                    .orElseThrow(() -> new ResourceNotFoundException("Authenticated student not found: " + studentEmail));
+            if (request.getStudentId() != null && !request.getStudentId().equals(student.getId())) {
+                throw new AccessDeniedException("You cannot submit an application on behalf of another student.");
+            }
+        } else {
+            if (request.getStudentId() == null) {
+                throw new IllegalArgumentException("studentId is required");
+            }
+            student = studentRepository.findById(request.getStudentId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Student not found with id: " + request.getStudentId()));
+        }
 
         // 2. Verify the internship exists
         Internship internship = internshipRepository.findById(request.getInternshipId())
@@ -74,9 +91,9 @@ public class ApplicationService {
 
         // 4. Duplicate check (service-level, fast path)
         if (applicationRepository.existsByStudentIdAndInternshipId(
-                request.getStudentId(), request.getInternshipId())) {
+                student.getId(), request.getInternshipId())) {
             throw new DuplicateApplicationException(
-                    request.getStudentId(), request.getInternshipId());
+                    student.getId(), request.getInternshipId());
         }
 
         // 5. Build and persist the application
@@ -88,14 +105,48 @@ public class ApplicationService {
                 .notes(request.getNotes())
                 .build();
 
+        Application savedApplication;
         try {
-            return applicationRepository.save(application);
+            savedApplication = applicationRepository.save(application);
         } catch (DataIntegrityViolationException ex) {
             // Safety net: if a race condition slips past the service-level check,
             // the DB unique constraint fires. We translate it to the same 409 response.
             throw new DuplicateApplicationException(
-                    request.getStudentId(), request.getInternshipId());
+                    student.getId(), request.getInternshipId());
         }
+
+        // 6. Real-time Notifications:
+        // A) Notify the student that their application was submitted
+        notificationService.notifyStudent(
+                student,
+                "Application Submitted",
+                "Your application for " + internship.getRole() + " at " + internship.getCompanyName() + " was successfully submitted.",
+                internship.getRole(),
+                savedApplication.getId(),
+                internship.getId()
+        );
+
+        // B) Notify the HR owner who posted this internship (if posted by a registered HR)
+        if (internship.getPostedByHr() != null) {
+            notificationService.notifyHr(
+                    internship.getPostedByHr(),
+                    "New Application Received",
+                    student.getName() + " applied for " + internship.getRole() + ".",
+                    internship.getRole(),
+                    savedApplication.getId(),
+                    internship.getId()
+            );
+        }
+
+        return savedApplication;
+    }
+
+    /**
+     * Backward-compatible overload for existing tests and unauthenticated calls.
+     */
+    @Transactional
+    public Application apply(ApplicationRequest request) {
+        return apply(request, null);
     }
 
     // ------------------------------------------------------------------ //
@@ -144,15 +195,86 @@ public class ApplicationService {
         return applicationRepository.findByInternshipId(internshipId);
     }
 
-    // ------------------------------------------------------------------ //
-    //  UPDATE                                                              //
-    // ------------------------------------------------------------------ //
+    /**
+     * Returns all applications for internships posted by the specified HR user.
+     *
+     * @param hrEmail the official email of the HR recruiter
+     * @return list of applications for the HR user's internships
+     */
+    @Transactional(readOnly = true)
+    public List<Application> findByHrEmail(String hrEmail) {
+        HrUser hrUser = hrUserRepository.findByOfficialEmailIgnoreCase(hrEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("HR user not found with email: " + hrEmail));
+        return applicationRepository.findByInternshipPostedByHrId(hrUser.getId());
+    }
+
+    /**
+     * Updates the status of an existing application with HR ownership verification.
+     *
+     * @param id      the application ID
+     * @param status  the new status to assign
+     * @param hrEmail authenticated HR email (or null for backward compatibility)
+     * @return the updated Application entity
+     */
+    @Transactional
+    public Application updateStatus(Long id, ApplicationStatus status, String hrEmail) {
+        Application application = findById(id);
+
+        if (hrEmail != null && !hrEmail.isBlank()) {
+            HrUser owner = application.getInternship() != null ? application.getInternship().getPostedByHr() : null;
+            if (owner != null && !owner.getOfficialEmail().equalsIgnoreCase(hrEmail)) {
+                throw new AccessDeniedException("You are not authorized to update applications for an internship posted by another recruiter");
+            }
+        }
+
+        // Avoid duplicate notification if the status did not actually change
+        if (application.getStatus() == status) {
+            return application;
+        }
+
+        application.setStatus(status);
+        Application updated = applicationRepository.save(application);
+
+        // Notify student of status update
+        String role = updated.getInternship() != null ? updated.getInternship().getRole() : "Internship";
+        String company = updated.getInternship() != null ? updated.getInternship().getCompanyName() : "Company";
+        String statusTitle;
+        String statusMessage;
+
+        switch (status) {
+            case SHORTLISTED -> {
+                statusTitle = "Application Shortlisted";
+                statusMessage = "Congratulations! Your application for " + role + " at " + company + " has been shortlisted.";
+            }
+            case REJECTED -> {
+                statusTitle = "Application Status Update";
+                statusMessage = "Your application for " + role + " at " + company + " was not selected at this time.";
+            }
+            case UNDER_REVIEW -> {
+                statusTitle = "Application Under Review";
+                statusMessage = "Your application for " + role + " at " + company + " is currently under review.";
+            }
+            default -> {
+                statusTitle = "Application Status Changed";
+                statusMessage = "Your application for " + role + " status has changed to " + status + ".";
+            }
+        }
+
+        notificationService.notifyStudent(
+                updated.getStudent(),
+                statusTitle,
+                statusMessage,
+                role,
+                updated.getId(),
+                updated.getInternship() != null ? updated.getInternship().getId() : null
+        );
+
+        return updated;
+    }
 
     /**
      * Updates the status of an existing application.
-     *
-     * NOTE: This endpoint is NOT protected by authentication.
-     * In a future milestone, status changes should be restricted to HR/Admin users.
+     * Backward-compatible overload.
      *
      * @param id      the application ID
      * @param status  the new status to assign
@@ -160,9 +282,7 @@ public class ApplicationService {
      */
     @Transactional
     public Application updateStatus(Long id, ApplicationStatus status) {
-        Application application = findById(id);
-        application.setStatus(status);
-        return applicationRepository.save(application);
+        return updateStatus(id, status, null);
     }
 
     // ------------------------------------------------------------------ //

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Building2,
   MapPin,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import Sidebar from '../../components/hr/Sidebar'
 import Topbar from '../../components/hr/Topbar'
+import { getHrProfile, getHrAuthToken } from '../../services/api'
 import './HRCompanyProfile.css'
 
 const DEFAULT_PROFILE = {
@@ -41,25 +42,9 @@ function HRCompanyProfile() {
   // Load saved profile data from localStorage with fallback to default demo data
   const [profileData, setProfileData] = useState(() => {
     try {
-      const stored = localStorage.getItem('internhubHRProfile')
+      const stored = localStorage.getItem('internhubHRProfile') || localStorage.getItem('internhubHR')
       if (stored) {
         return { ...DEFAULT_PROFILE, ...JSON.parse(stored) }
-      }
-      // Check if registered in HRRegister
-      const hrStored = localStorage.getItem('internhubHR')
-      if (hrStored) {
-        const parsed = JSON.parse(hrStored)
-        return {
-          ...DEFAULT_PROFILE,
-          hrName: parsed.hrName || DEFAULT_PROFILE.hrName,
-          officialEmail: parsed.officialEmail || DEFAULT_PROFILE.officialEmail,
-          phone: parsed.phone || DEFAULT_PROFILE.phone,
-          companyName: parsed.companyName || DEFAULT_PROFILE.companyName,
-          companyLocation: parsed.companyLocation || DEFAULT_PROFILE.companyLocation,
-          industry: parsed.industry || DEFAULT_PROFILE.industry,
-          designation: parsed.designation || DEFAULT_PROFILE.designation,
-          employeeId: parsed.employeeId || DEFAULT_PROFILE.employeeId,
-        }
       }
     } catch (err) {
       console.error('Error loading stored HR profile:', err)
@@ -67,8 +52,43 @@ function HRCompanyProfile() {
     return DEFAULT_PROFILE
   })
 
+  // Hydrate from backend /api/hr/me if authenticated
+  useEffect(() => {
+    const token = getHrAuthToken()
+    if (!token) return
+
+    let isMounted = true
+    getHrProfile()
+      .then((live) => {
+        if (!isMounted || !live) return
+        setProfileData((prev) => ({
+          ...prev,
+          ...live,
+          hrName: live.hrName || prev.hrName,
+          officialEmail: live.officialEmail || prev.officialEmail,
+          phone: live.phone || prev.phone,
+          companyName: live.companyName || prev.companyName,
+          companyLocation: live.companyLocation || prev.companyLocation,
+          industry: live.industry || prev.industry,
+          designation: live.designation || prev.designation,
+          employeeId: live.employeeId || prev.employeeId,
+        }))
+      })
+      .catch((err) => {
+        console.warn('Could not load HR profile from /api/hr/me:', err.message)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   // Temporary edit buffer so Cancel restores previous values
   const [formData, setFormData] = useState(profileData)
+
+  useEffect(() => {
+    setFormData(profileData)
+  }, [profileData])
 
   // Compute initials for avatar emblem
   const initials = useMemo(() => {

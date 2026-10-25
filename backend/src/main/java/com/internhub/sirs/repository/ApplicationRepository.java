@@ -35,6 +35,16 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
     List<Application> findByInternshipId(Long internshipId);
 
     /**
+     * Deletes all applications belonging to an internship.
+     */
+    void deleteByInternshipId(Long internshipId);
+
+    /**
+     * Fetches all applications for internships posted by a specific HR user ID.
+     */
+    List<Application> findByInternshipPostedByHrId(Long hrId);
+
+    /**
      * Deletes all applications belonging to a student.
      * Handy for test cleanup: call this before deleting the student row
      * so foreign-key constraints are not violated.

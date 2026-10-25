@@ -12,6 +12,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,51 +32,46 @@ public class InternshipController {
 
     /**
      * POST /api/internships - Publish a new internship.
+     * Restricted to authenticated HR users when authentication is present.
      */
     @PostMapping
+    @PreAuthorize("hasRole('HR') or isAnonymous()")
     @Operation(summary = "Create an internship", description = "Publishes a new internship posting and assigns an ID.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Internship created successfully"),
-            @ApiResponse(responseCode = "400", description = "Validation failed on submitted fields")
+            @ApiResponse(responseCode = "400", description = "Validation failed on submitted fields"),
+            @ApiResponse(responseCode = "403", description = "Access denied for non-HR role")
     })
-    public ResponseEntity<Internship> createInternship(@Valid @RequestBody InternshipRequest request) {
-        Internship created = internshipService.createInternship(request);
+    public ResponseEntity<Internship> createInternship(
+            @Valid @RequestBody InternshipRequest request,
+            Authentication authentication) {
+        String hrEmail = (authentication != null && authentication.isAuthenticated()) ? authentication.getName() : null;
+        Internship created = internshipService.createInternship(request, hrEmail);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     /**
+     * GET /api/internships/my - Get internships posted by current authenticated HR user.
+     */
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('HR')")
+    @Operation(summary = "Get HR user's own internships", description = "Returns internships posted by the currently authenticated HR account.")
+    public ResponseEntity<List<Internship>> getMyInternships(Authentication authentication) {
+        String hrEmail = (authentication != null) ? authentication.getName() : null;
+        List<Internship> myInternships = internshipService.getMyInternships(hrEmail);
+        return ResponseEntity.ok(myInternships);
+    }
+
+    /**
      * GET /api/internships - List all internships, with optional search/filter parameters.
-     *
-     * All parameters are optional. When none are provided, all internships are returned
-     * (same as before Milestone 6 — fully backward-compatible).
-     *
-     * Query parameters:
-     *   companyName  – case-insensitive substring match on company name
-     *   role         – case-insensitive substring match on role title
-     *   location     – case-insensitive substring match on location
-     *   activeOnly   – true = only include internships with deadline today or in the future
-     *
-     * Blank string parameters (e.g. ?companyName=) are treated as absent and ignored.
-     * Multiple filters are combined with AND.
+     * Publicly accessible for students and prospective applicants.
      */
     @GetMapping
     @Operation(
         summary = "Get all internships (with optional filters)",
-        description = """
-            Returns all internship postings. Supports optional query parameters to filter results:
-
-            - **companyName**: case-insensitive substring search (e.g. `?companyName=tech`)
-            - **role**: case-insensitive substring search (e.g. `?role=java`)
-            - **location**: case-insensitive substring search (e.g. `?location=bangalore`)
-            - **activeOnly**: `true` returns only internships whose deadline is today or in the future
-
-            Multiple filters can be combined: `?companyName=apex&role=intern&activeOnly=true`
-
-            When no parameters are provided, all internships are returned (same as before).
-            Blank parameter values are ignored.
-            """
+        description = "Returns all internship postings. Supports optional query parameters to filter results."
     )
-    @ApiResponse(responseCode = "200", description = "List of matching internships returned (empty list if no matches)")
+    @ApiResponse(responseCode = "200", description = "List of matching internships returned")
     public ResponseEntity<List<Internship>> getAllInternships(
             @Parameter(description = "Case-insensitive company name keyword (optional)")
             @RequestParam(required = false) String companyName,
@@ -85,7 +82,7 @@ public class InternshipController {
             @Parameter(description = "Case-insensitive location keyword (optional)")
             @RequestParam(required = false) String location,
 
-            @Parameter(description = "If true, only includes internships with deadline today or in future (default: false)")
+            @Parameter(description = "If true, only includes internships with deadline today or in future")
             @RequestParam(required = false, defaultValue = "false") boolean activeOnly) {
 
         List<Internship> internships =
@@ -112,16 +109,20 @@ public class InternshipController {
      * PUT /api/internships/{id} - Update an existing internship by ID.
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('HR') or isAnonymous()")
     @Operation(summary = "Update an internship", description = "Updates details of an existing internship posting.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Internship updated successfully"),
             @ApiResponse(responseCode = "400", description = "Validation failed on submitted fields"),
+            @ApiResponse(responseCode = "403", description = "Forbidden if trying to modify another HR's posting"),
             @ApiResponse(responseCode = "404", description = "Internship not found with given ID")
     })
     public ResponseEntity<Internship> updateInternship(
             @Parameter(description = "ID of the internship to update") @PathVariable Long id,
-            @Valid @RequestBody InternshipRequest request) {
-        Internship updated = internshipService.updateInternship(id, request);
+            @Valid @RequestBody InternshipRequest request,
+            Authentication authentication) {
+        String hrEmail = (authentication != null && authentication.isAuthenticated()) ? authentication.getName() : null;
+        Internship updated = internshipService.updateInternship(id, request, hrEmail);
         return ResponseEntity.ok(updated);
     }
 
@@ -129,14 +130,18 @@ public class InternshipController {
      * DELETE /api/internships/{id} - Delete an internship by ID.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('HR') or isAnonymous()")
     @Operation(summary = "Delete an internship", description = "Removes an internship posting by its database ID.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Internship deleted successfully"),
+            @ApiResponse(responseCode = "403", description = "Forbidden if trying to delete another HR's posting"),
             @ApiResponse(responseCode = "404", description = "Internship not found with given ID")
     })
     public ResponseEntity<Void> deleteInternship(
-            @Parameter(description = "ID of the internship to delete") @PathVariable Long id) {
-        internshipService.deleteInternship(id);
+            @Parameter(description = "ID of the internship to delete") @PathVariable Long id,
+            Authentication authentication) {
+        String hrEmail = (authentication != null && authentication.isAuthenticated()) ? authentication.getName() : null;
+        internshipService.deleteInternship(id, hrEmail);
         return ResponseEntity.noContent().build();
     }
 }

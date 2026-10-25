@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { loginStudent, ApiError } from '../../services/api'
 import '../auth.css'
 
 function StudentLogin() {
@@ -10,6 +11,8 @@ function StudentLogin() {
     password: '',
     rememberMe: false,
   })
+  const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -18,47 +21,36 @@ function StudentLogin() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
+    if (errorMessage) {
+      setErrorMessage('')
+    }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setErrorMessage('')
+    setLoading(true)
 
     try {
-      const stored = localStorage.getItem('internhubStudent')
-
-      let existingStudent = {}
-
-      if (stored) {
-        try {
-          existingStudent = JSON.parse(stored)
-        } catch {
-          existingStudent = {}
-        }
-      }
-
-      const student = {
-        ...existingStudent,
-
+      await loginStudent({
         email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+      })
 
-        studentId:
-          existingStudent.studentId ||
-          existingStudent.id ||
-          formData.email.trim().toLowerCase(),
+      navigate('/student/dashboard')
+    } catch (err) {
+      console.error('Student login error:', err)
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setErrorMessage('Invalid email or password. Please verify your credentials and try again.')
+        } else {
+          setErrorMessage(err.message || 'Login failed. Please check your credentials.')
+        }
+      } else {
+        setErrorMessage('Unable to connect to the authentication server. Please ensure the backend is running.')
       }
-
-      localStorage.setItem(
-        'internhubStudent',
-        JSON.stringify(student)
-      )
-
-      // Go to Student Dashboard
-      navigate('/student/dashboard')
-    } catch (error) {
-      console.error('Student login error:', error)
-
-      // Frontend demo login fallback
-      navigate('/student/dashboard')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -98,6 +90,23 @@ function StudentLogin() {
             applications, explore new openings, and grow your career.
           </p>
 
+          {errorMessage && (
+            <div
+              style={{
+                backgroundColor: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #f87171',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                fontSize: '0.9rem',
+                lineHeight: 1.4,
+              }}
+              role="alert"
+            >
+              {errorMessage}
+            </div>
+          )}
 
           {/* Login Form */}
           <form
@@ -183,8 +192,9 @@ function StudentLogin() {
             <button
               type="submit"
               className="auth-submit-btn"
+              disabled={loading}
             >
-              Login as Student →
+              {loading ? 'Logging in...' : 'Login as Student →'}
             </button>
 
           </form>

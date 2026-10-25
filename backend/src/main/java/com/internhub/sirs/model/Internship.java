@@ -1,5 +1,6 @@
 package com.internhub.sirs.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,4 +41,15 @@ public class Internship {
 
     @Column(name = "application_deadline", nullable = false)
     private LocalDate applicationDeadline;
+
+    /**
+     * The HR account who posted this internship.
+     * Nullable to ensure backward compatibility with existing records or tests.
+     * EAGER loading prevents LazyInitializationException during JSON serialization
+     * when spring.jpa.open-in-view=false.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "posted_by_hr_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "passwordHash"})
+    private HrUser postedByHr;
 }

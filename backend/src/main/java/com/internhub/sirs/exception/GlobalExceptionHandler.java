@@ -5,6 +5,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -159,6 +162,44 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles bad credentials (incorrect password or unregistered email).
+     * Returns HTTP 401 Unauthorized.
+     */
+    @ExceptionHandler({BadCredentialsException.class, AuthenticationException.class})
+    public ResponseEntity<ErrorResponse> handleAuthenticationException(
+            Exception ex, HttpServletRequest request) {
+
+        ErrorResponse response = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.UNAUTHORIZED.value())
+                .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
+                .message(ex.getMessage() != null ? ex.getMessage() : "Invalid credentials")
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    /**
+     * Handles access denied (unauthorized access to protected resource).
+     * Returns HTTP 403 Forbidden.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            AccessDeniedException ex, HttpServletRequest request) {
+
+        ErrorResponse response = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.FORBIDDEN.value())
+                .error(HttpStatus.FORBIDDEN.getReasonPhrase())
+                .message("Access denied: You do not have permission to access this resource.")
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    /**
      * Handles database unique-constraint violations that slip past service-level checks
      * (e.g. due to a race condition). Returns HTTP 409 Conflict.
      */
@@ -179,15 +220,12 @@ public class GlobalExceptionHandler {
 
     /**
      * Handles unreadable / malformed JSON — including invalid enum values.
-     * For example, sending "status": "INVALID" for ApplicationStatus returns 400
-     * with a helpful message instead of a raw 500 stack trace.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleMessageNotReadable(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
 
         String message = "Malformed or unreadable JSON request body.";
-        // Give a friendlier hint when the root cause is an unrecognised enum constant
         Throwable cause = ex.getMostSpecificCause();
         if (cause != null && cause.getMessage() != null
                 && cause.getMessage().contains("not one of the values accepted")) {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { registerStudent, ApiError } from '../../services/api'
 import '../auth.css'
 
 function StudentRegister() {
@@ -17,6 +18,8 @@ function StudentRegister() {
     password: '',
     confirmPassword: '',
   })
+  const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -24,35 +27,56 @@ function StudentRegister() {
       ...prev,
       [name]: value,
     }))
+    if (errorMessage) {
+      setErrorMessage('')
+    }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setErrorMessage('')
+
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!')
+      setErrorMessage('Passwords do not match!')
       return
     }
-    const student = {
-      name: formData.fullName,
-      fullName: formData.fullName,
-      email: formData.email.trim().toLowerCase(),
-      phone: formData.phone,
-      college: formData.college,
-      course: formData.course,
-      department: formData.department,
-      yearSemester: formData.yearSemester,
-      studentId: formData.studentId,
-      skills: formData.skills,
+
+    if (formData.password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters long.')
+      return
     }
 
-    localStorage.setItem(
-      'internhubStudent',
-      JSON.stringify(student)
-    )
+    setLoading(true)
 
-    alert('Student Registration successful!')
+    try {
+      await registerStudent({
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        phone: formData.phone.trim(),
+        college: formData.college.trim(),
+        course: formData.course.trim(),
+        department: formData.department.trim(),
+        yearSemester: formData.yearSemester.trim(),
+        studentId: formData.studentId.trim(),
+        skills: formData.skills.trim(),
+      })
 
-    navigate('/student/dashboard')
+      navigate('/student/dashboard')
+    } catch (err) {
+      console.error('Registration error:', err)
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
+          setErrorMessage('An account with this email address already exists. Please log in instead.')
+        } else {
+          setErrorMessage(err.message || 'Registration failed. Please check your details and try again.')
+        }
+      } else {
+        setErrorMessage('Unable to connect to server. Please ensure the backend is running.')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -77,6 +101,24 @@ function StudentRegister() {
             Join InternHub to explore verified internship opportunities, connect
             with leading companies, and track your career growth.
           </p>
+
+          {errorMessage && (
+            <div
+              style={{
+                backgroundColor: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #f87171',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                fontSize: '0.9rem',
+                lineHeight: 1.4,
+              }}
+              role="alert"
+            >
+              {errorMessage}
+            </div>
+          )}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-grid-2">
@@ -243,7 +285,7 @@ function StudentRegister() {
                   type="password"
                   name="password"
                   className="form-input"
-                  placeholder="Create a strong password"
+                  placeholder="Create a strong password (min 6 characters)"
                   value={formData.password}
                   onChange={handleChange}
                   required
@@ -269,8 +311,8 @@ function StudentRegister() {
             </div>
 
             {/* Register Button */}
-            <button type="submit" className="auth-submit-btn">
-              Register as Student →
+            <button type="submit" className="auth-submit-btn" disabled={loading}>
+              {loading ? 'Creating Account...' : 'Register as Student →'}
             </button>
           </form>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
     ArrowLeft,
@@ -12,6 +12,13 @@ import Sidebar from '../../components/student/Sidebar'
 import Topbar from '../../components/student/Topbar'
 import { mockStudentProfile } from '../../data/studentMockData'
 import { sampleInternships } from '../../data/internshipsData'
+import {
+    getInternshipById,
+    getStudentProfile,
+    submitApplication,
+    getAuthToken,
+    ApiError,
+} from '../../services/api'
 
 function StudentApplication() {
     const navigate = useNavigate()
@@ -19,34 +26,33 @@ function StudentApplication() {
 
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [submitted, setSubmitted] = useState(false)
-
-    const [studentName] = useState(() => {
+    const [submitting, setSubmitting] = useState(false)
+    const [loadingInternship, setLoadingInternship] = useState(true)
+    const [internship, setInternship] = useState(null)
+    const [studentData, setStudentData] = useState(() => {
         try {
             const stored = localStorage.getItem('internhubStudent')
-
-            if (stored) {
-                const parsed = JSON.parse(stored)
-                return parsed.name || parsed.fullName || 'Student'
-            }
+            if (stored) return JSON.parse(stored)
         } catch {
             // fallback
         }
-
-        return mockStudentProfile.name || 'Student'
+        return mockStudentProfile
     })
+
+    const studentName = studentData?.name || studentData?.fullName || 'Student'
 
     const [formData, setFormData] = useState({
         fullName: studentName,
-        email: '',
-        phone: '',
-        college: '',
-        course: '',
-        department: '',
-        year: '',
-        semester: '',
-        studentId: '',
+        email: studentData?.email || '',
+        phone: studentData?.phone || '',
+        college: studentData?.college || '',
+        course: studentData?.course || '',
+        department: studentData?.department || '',
+        year: studentData?.year || '',
+        semester: studentData?.semester || '',
+        studentId: studentData?.studentId || studentData?.studentCode || '',
         cgpa: '',
-        skills: '',
+        skills: studentData?.skills || '',
         whyInternship: '',
         availability: '',
         workMode: '',
@@ -56,9 +62,66 @@ function StudentApplication() {
     const [resume, setResume] = useState(null)
     const [additionalDocs, setAdditionalDocs] = useState([])
 
-    const internship = sampleInternships.find(
-        (item) => String(item.id) === String(internshipId)
-    )
+    // Load live internship from backend (with sample fallback if legacy ID)
+    useEffect(() => {
+        let isMounted = true
+        setLoadingInternship(true)
+
+        getInternshipById(internshipId)
+            .then((data) => {
+                if (!isMounted) return
+                if (data) {
+                    setInternship({
+                        id: data.id,
+                        title: data.role,
+                        company: data.companyName,
+                        location: data.location,
+                        duration: '3 Months',
+                        description: data.description,
+                        eligibility: data.eligibility,
+                        applicationDeadline: data.applicationDeadline,
+                    })
+                }
+            })
+            .catch(() => {
+                if (!isMounted) return
+                // Try fallback to sample internships
+                const fallback = sampleInternships.find(
+                    (item) => String(item.id) === String(internshipId)
+                )
+                if (fallback) {
+                    setInternship(fallback)
+                }
+            })
+            .finally(() => {
+                if (isMounted) setLoadingInternship(false)
+            })
+
+        // Also hydrate student profile from backend if token present
+        if (getAuthToken()) {
+            getStudentProfile()
+                .then((profile) => {
+                    if (!isMounted || !profile) return
+                    setStudentData(profile)
+                    setFormData((prev) => ({
+                        ...prev,
+                        fullName: profile.name || prev.fullName,
+                        email: profile.email || prev.email,
+                        phone: profile.phone || prev.phone,
+                        college: profile.college || prev.college,
+                        course: profile.course || prev.course,
+                        department: profile.department || prev.department,
+                        studentId: profile.studentCode || prev.studentId,
+                        skills: profile.skills || prev.skills,
+                    }))
+                })
+                .catch((err) => console.warn('Could not load student profile:', err.message))
+        }
+
+        return () => {
+            isMounted = false
+        }
+    }, [internshipId])
 
     const initials = studentName
         .trim()
@@ -95,43 +158,104 @@ function StudentApplication() {
         setAdditionalDocs(files)
     }
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
 
         const existingApplications = JSON.parse(
             localStorage.getItem('internhubApplications') || '[]'
         )
 
-        const alreadyApplied = existingApplications.some(
+        const alreadyAppliedLocal = existingApplications.some(
             (application) =>
                 String(application.internshipId) === String(internshipId) &&
-                application.studentName === studentName
+                (application.studentName === studentName || application.email === formData.email)
         )
 
-        if (alreadyApplied) {
+        if (alreadyAppliedLocal) {
             alert('You have already applied for this internship.')
             return
         }
 
-        const application = {
-            id: Date.now(),
-            internshipId,
-            internshipTitle: internship?.title || 'Internship',
-            company: internship?.company || 'Company',
-            studentName,
-            ...formData,
-            resumeName: resume?.name || '',
-            additionalDocumentNames: additionalDocs.map((file) => file.name),
-            status: 'Applied',
-            submittedAt: new Date().toISOString(),
+        setSubmitting(true)
+
+        try {
+            // If backend numeric ID, submit to Spring Boot /api/applications
+            let backendApplication = null
+            const numInternshipId = Number(internshipId)
+            const numStudentId = Number(studentData?.id)
+
+            if (!isNaN(numInternshipId) && !isNaN(numStudentId) && numStudentId > 0) {
+                const notes = [
+                    formData.whyInternship ? `Why Internship: ${formData.whyInternship}` : '',
+                    formData.cgpa ? `CGPA: ${formData.cgpa}` : '',
+                    formData.availability ? `Availability: ${formData.availability}` : '',
+                    formData.workMode ? `Preferred Mode: ${formData.workMode}` : '',
+                ].filter(Boolean).join(' | ')
+
+                backendApplication = await submitApplication({
+                    studentId: numStudentId,
+                    internshipId: numInternshipId,
+                    notes: notes || undefined,
+                })
+            }
+
+            const application = {
+                id: backendApplication?.id || Date.now(),
+                internshipId,
+                internshipTitle: internship?.title || 'Internship',
+                company: internship?.company || 'Company',
+                studentName,
+                ...formData,
+                resumeName: resume?.name || '',
+                additionalDocumentNames: additionalDocs.map((file) => file.name),
+                status: 'Applied',
+                submittedAt: new Date().toISOString(),
+            }
+
+            localStorage.setItem(
+                'internhubApplications',
+                JSON.stringify([...existingApplications, application])
+            )
+
+            setSubmitted(true)
+        } catch (err) {
+            console.error('Application submission error:', err)
+            if (err instanceof ApiError) {
+                if (err.status === 409) {
+                    alert('You have already applied for this internship.')
+                } else {
+                    alert(err.message || 'Failed to submit application. Please try again.')
+                }
+            } else {
+                alert('An unexpected error occurred while submitting your application.')
+            }
+        } finally {
+            setSubmitting(false)
         }
+    }
 
-        localStorage.setItem(
-            'internhubApplications',
-            JSON.stringify([...existingApplications, application])
+    if (loadingInternship) {
+        return (
+            <div className="student-dashboard-layout">
+                <Sidebar
+                    isOpen={sidebarOpen}
+                    onClose={() => setSidebarOpen(false)}
+                />
+                <div className="dashboard-main-content">
+                    <Topbar
+                        studentName={studentName}
+                        initials={initials}
+                        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+                        title="Application"
+                    />
+                    <main className="dashboard-container">
+                        <div className="dashboard-card" style={{ textAlign: 'center', padding: '40px' }}>
+                            <p>Loading internship details...</p>
+                        </div>
+                    </main>
+                </div>
+            </div>
         )
-
-        setSubmitted(true)
     }
 
     if (!internship) {

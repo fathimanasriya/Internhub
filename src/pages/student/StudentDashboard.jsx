@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Briefcase,
@@ -20,6 +20,7 @@ import AIAssistant from '../../components/student/AIAssistant'
 import StatCard from '../../components/student/StatCard'
 import ApplicationsTable from '../../components/student/ApplicationsTable'
 import InternshipCard from '../../components/student/InternshipCard'
+import { getStudentProfile, getAuthToken } from '../../services/api'
 
 // Mock Data Source
 import {
@@ -39,7 +40,7 @@ function StudentDashboard() {
   const [modalApplied, setModalApplied] = useState(false)
 
   // 1. Student Identity: Read name from localStorage (key: "internhubStudent"), fallback to "Student"
-  const [studentName] = useState(() => {
+  const [studentName, setStudentName] = useState(() => {
     try {
       const stored = localStorage.getItem('internhubStudent')
       if (stored) {
@@ -52,8 +53,8 @@ function StudentDashboard() {
     return 'Student'
   })
 
-  // 2. Profile Details (TODO: replace with API call: GET /api/student/profile)
-  const [profile] = useState(() => {
+  // 2. Profile Details: initialize with localStorage or mock, then hydrate from backend /api/students/me
+  const [profile, setProfile] = useState(() => {
     try {
       const stored = localStorage.getItem('internhubStudent')
       if (stored) {
@@ -73,6 +74,36 @@ function StudentDashboard() {
     }
     return mockStudentProfile
   })
+
+  // Fetch live profile from backend if JWT token exists
+  useEffect(() => {
+    const token = getAuthToken()
+    if (!token) return
+
+    let isMounted = true
+    getStudentProfile()
+      .then((liveProfile) => {
+        if (!isMounted || !liveProfile) return
+        const displayName = liveProfile.fullName || liveProfile.name || 'Student'
+        setStudentName(displayName)
+        setProfile((prev) => ({
+          ...prev,
+          ...liveProfile,
+          name: displayName,
+          email: liveProfile.email || prev.email,
+          college: liveProfile.college || prev.college,
+          course: liveProfile.course || prev.course,
+          year: liveProfile.yearSemester || prev.year,
+        }))
+      })
+      .catch((err) => {
+        console.warn('Could not load live profile from /api/students/me:', err.message)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // 3. Application Stats (TODO: replace with API call: GET /api/student/stats)
   const [stats] = useState(mockStudentStats)
@@ -165,18 +196,18 @@ function StudentDashboard() {
             <div className="profile-completion-section">
               <div className="completion-header">
                 <span className="completion-label">Profile Completion</span>
-                <span className="completion-percentage">{profile.profileCompletion}%</span>
+                <span className="completion-percentage">{profile.profileCompletion || 85}%</span>
               </div>
               <div
                 className="progress-track"
                 role="progressbar"
-                aria-valuenow={profile.profileCompletion}
+                aria-valuenow={profile.profileCompletion || 85}
                 aria-valuemin="0"
                 aria-valuemax="100"
               >
                 <div
                   className="progress-fill"
-                  style={{ width: `${profile.profileCompletion}%` }}
+                  style={{ width: `${profile.profileCompletion || 85}%` }}
                 />
               </div>
             </div>

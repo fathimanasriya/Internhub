@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { loginHr, ApiError } from '../../services/api'
 import '../auth.css'
 
 function HRLogin() {
@@ -9,6 +10,8 @@ function HRLogin() {
     password: '',
     rememberMe: false,
   })
+  const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -16,13 +19,37 @@ function HRLogin() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
+    if (errorMessage) {
+      setErrorMessage('')
+    }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setErrorMessage('')
+    setLoading(true)
 
-    // Frontend demo login
-    navigate('/hr/dashboard')
+    try {
+      await loginHr({
+        officialEmail: formData.officialEmail.trim().toLowerCase(),
+        password: formData.password,
+      })
+
+      navigate('/hr/dashboard')
+    } catch (err) {
+      console.error('HR login error:', err)
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setErrorMessage('Invalid official work email or password. Please verify credentials.')
+        } else {
+          setErrorMessage(err.message || 'Login failed. Please check your credentials.')
+        }
+      } else {
+        setErrorMessage('Unable to connect to authentication server. Please ensure backend is running.')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -47,6 +74,24 @@ function HRLogin() {
             Sign in to your InternHub employer dashboard to post internship
             opportunities, review student applicants, and manage your talent pipeline.
           </p>
+
+          {errorMessage && (
+            <div
+              style={{
+                backgroundColor: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #f87171',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                fontSize: '0.9rem',
+                lineHeight: 1.4,
+              }}
+              role="alert"
+            >
+              {errorMessage}
+            </div>
+          )}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             {/* Official Email */}
@@ -100,8 +145,8 @@ function HRLogin() {
             </div>
 
             {/* Submit Button */}
-            <button type="submit" className="auth-submit-btn">
-              Login as HR / Recruiter →
+            <button type="submit" className="auth-submit-btn" disabled={loading}>
+              {loading ? 'Signing in...' : 'Login as HR / Recruiter →'}
             </button>
           </form>
 
