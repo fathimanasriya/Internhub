@@ -28,6 +28,7 @@ import './StudentDashboard.css'
 import Sidebar from '../../components/student/Sidebar'
 import Topbar from '../../components/student/Topbar'
 import { mockStudentProfile } from '../../data/studentMockData'
+import { getStudentProfile, getAuthToken } from '../../services/api'
 
 // Inline SVG Icon for GitHub (Lucide style)
 function GithubIcon({ size = 18, className = '' }) {
@@ -178,6 +179,57 @@ function StudentProfile() {
 
   // Snapshot for discarding edits
   const [savedSnapshot, setSavedSnapshot] = useState(profileData)
+
+  // Hydrate profile data from live backend if logged in
+  useEffect(() => {
+    const token = getAuthToken()
+    if (!token) return
+
+    let isMounted = true
+    getStudentProfile()
+      .then((liveProfile) => {
+        if (!isMounted || !liveProfile) return
+        setProfileData((prev) => {
+          let parsedSkills = prev.skills
+          if (liveProfile.skills) {
+            parsedSkills = Array.isArray(liveProfile.skills)
+              ? liveProfile.skills
+              : liveProfile.skills.split(',').map((s) => s.trim()).filter(Boolean)
+          }
+
+          let parsedYear = prev.year
+          let parsedSemester = prev.semester
+          if (liveProfile.yearSemester && liveProfile.yearSemester.includes('/')) {
+            const parts = liveProfile.yearSemester.split('/')
+            parsedYear = parts[0]?.trim() || parsedYear
+            parsedSemester = parts[1]?.trim() || parsedSemester
+          } else if (liveProfile.yearSemester) {
+            parsedYear = liveProfile.yearSemester
+          }
+
+          const updated = {
+            ...prev,
+            fullName: liveProfile.name || liveProfile.fullName || prev.fullName,
+            email: liveProfile.email || prev.email,
+            phone: liveProfile.phone || prev.phone,
+            college: liveProfile.college || prev.college,
+            course: liveProfile.course || prev.course,
+            department: liveProfile.department || prev.department,
+            studentId: liveProfile.studentCode || liveProfile.studentId || prev.studentId,
+            skills: parsedSkills,
+            year: parsedYear,
+            semester: parsedSemester,
+          }
+          setSavedSnapshot(updated)
+          return updated
+        })
+      })
+      .catch((err) => console.warn('Could not load student profile from backend:', err.message))
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Dynamic Initials from full name
   const studentDisplayName = profileData.fullName || 'Student'

@@ -9,6 +9,7 @@ import {
   LogOut,
   X,
 } from 'lucide-react'
+import { logoutStudent } from '../../services/api'
 
 /**
  * Sidebar Component
@@ -19,10 +20,7 @@ function Sidebar({ isOpen, onClose }) {
 
   const handleLogout = (e) => {
     e.preventDefault()
-    // Clear stored student session data
-    localStorage.removeItem('internhubStudent')
-    localStorage.removeItem('studentToken')
-    // Navigate to student login
+    logoutStudent()
     navigate('/student/login')
   }
 

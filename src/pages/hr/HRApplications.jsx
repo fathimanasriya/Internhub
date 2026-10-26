@@ -947,32 +947,21 @@ function HRApplications() {
   const [bannerMessage, setBannerMessage] = useState(null) // { text, type: 'success' | 'reject' }
 
   // Recruiter profile info
-  const [hrProfile] = useState(() => {
+  const [hrProfile, setHrProfile] = useState(() => {
     try {
-      const stored = localStorage.getItem('internhubHRProfile')
+      const stored = localStorage.getItem('internhubHRProfile') || localStorage.getItem('internhubHR')
       if (stored) return JSON.parse(stored)
     } catch (err) {
       console.error('Error reading hrProfile:', err)
     }
     return {
-      hrName: 'Sarah Mitchell',
-      companyName: 'NovaTech Labs Pvt Ltd',
+      hrName: 'HR Recruiter',
+      companyName: 'Enterprise Partner',
     }
   })
 
-  // Applications list loaded from backend /api/applications/hr/my with initial demo fallback
-  const [applications, setApplications] = useState(() => {
-    try {
-      const stored = localStorage.getItem('internhubHRApplications')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch (err) {
-      console.error('Error loading stored applications:', err)
-    }
-    return INITIAL_DEMO_APPLICATIONS
-  })
+  // Applications list loaded from backend /api/applications/hr/my
+  const [applications, setApplications] = useState([])
 
   // Fetch real applications from Spring Boot backend if HR is logged in
   useEffect(() => {
@@ -981,49 +970,65 @@ function HRApplications() {
 
     let isMounted = true
 
-    getHrApplications()
-      .then((backendApps) => {
-        if (!isMounted || !Array.isArray(backendApps)) return
-        // If HR has backend applications, map them into the HRApplications UI format
-        if (backendApps.length > 0) {
-          const mapped = backendApps.map((item) => {
-            const student = item.student || {}
-            const internship = item.internship || {}
-            let skillsArr = []
-            if (student.skills) {
-              skillsArr = Array.isArray(student.skills)
-                ? student.skills
-                : student.skills.split(',').map((s) => s.trim()).filter(Boolean)
-            }
-            if (skillsArr.length === 0 && internship.requirements) {
-              skillsArr = [internship.requirements]
-            }
-
-            return {
-              id: item.id,
-              studentName: student.name || 'Student Applicant',
-              email: student.email || '',
-              phone: student.phone || 'Not provided',
-              college: student.college || 'Not provided',
-              degree: student.course || student.department || 'Undergraduate',
-              gradYear: student.year || '2026',
-              internship: internship.role || 'Internship Role',
-              department: student.department || 'Engineering',
-              type: internship.location?.toLowerCase().includes('remote') ? 'Remote' : 'On-site',
-              location: internship.location || 'Not specified',
-              duration: internship.duration || '3 Months',
-              appliedDate: formatBackendDate(item.appliedDate),
-              skills: skillsArr.length > 0 ? skillsArr : ['General'],
-              status: mapBackendStatusToFrontend(item.status),
-              notes: item.notes || '',
-              documents: ['Resume.pdf', 'ID Proof.pdf'],
-            }
-          })
-          setApplications(mapped)
-        }
+    // Fetch live HR profile
+    getHrProfile()
+      .then((profile) => {
+        if (!isMounted || !profile) return
+        setHrProfile({
+          hrName: profile.hrName || 'HR Recruiter',
+          companyName: profile.companyName || 'Enterprise Partner',
+          ...profile,
+        })
       })
       .catch((err) => {
-        console.warn('Could not load backend HR applications, using local state:', err.message)
+        console.warn('Could not load live HR profile:', err.message)
+      })
+
+    getHrApplications()
+      .then((backendApps) => {
+        if (!isMounted) return
+        if (!Array.isArray(backendApps) || backendApps.length === 0) {
+          setApplications([])
+          return
+        }
+
+        const mapped = backendApps.map((item) => {
+          const student = item.student || {}
+          const internship = item.internship || {}
+          let skillsArr = []
+          if (student.skills) {
+            skillsArr = Array.isArray(student.skills)
+              ? student.skills
+              : student.skills.split(',').map((s) => s.trim()).filter(Boolean)
+          }
+          if (skillsArr.length === 0 && internship.requirements) {
+            skillsArr = [internship.requirements]
+          }
+
+          return {
+            id: item.id,
+            studentName: student.name || 'Student Applicant',
+            email: student.email || '',
+            phone: student.phone || 'Not provided',
+            college: student.college || 'Not provided',
+            degree: student.course || student.department || 'Undergraduate',
+            gradYear: student.year || '2026',
+            internship: internship.role || 'Internship Role',
+            department: student.department || 'Engineering',
+            type: internship.location?.toLowerCase().includes('remote') ? 'Remote' : 'On-site',
+            location: internship.location || 'Not specified',
+            duration: internship.duration || '3 Months',
+            appliedDate: formatBackendDate(item.appliedDate),
+            skills: skillsArr.length > 0 ? skillsArr : ['General'],
+            status: mapBackendStatusToFrontend(item.status),
+            notes: item.notes || '',
+            documents: ['Resume.pdf', 'ID Proof.pdf'],
+          }
+        })
+        setApplications(mapped)
+      })
+      .catch((err) => {
+        console.warn('Could not load backend HR applications:', err.message)
       })
 
     return () => {

@@ -20,15 +20,7 @@ import AIAssistant from '../../components/student/AIAssistant'
 import StatCard from '../../components/student/StatCard'
 import ApplicationsTable from '../../components/student/ApplicationsTable'
 import InternshipCard from '../../components/student/InternshipCard'
-import { getStudentProfile, getAuthToken } from '../../services/api'
-
-// Mock Data Source
-import {
-  mockStudentProfile,
-  mockStudentStats,
-  mockRecentApplications,
-  mockRecommendedInternships,
-} from '../../data/studentMockData'
+import { getStudentProfile, getMyStudentApplications, getInternships, getAuthToken } from '../../services/api'
 
 /**
  * StudentDashboard Component
@@ -53,34 +45,58 @@ function StudentDashboard() {
     return 'Student'
   })
 
-  // 2. Profile Details: initialize with localStorage or mock, then hydrate from backend /api/students/me
+  // 2. Profile Details: initialize with localStorage or defaults, then hydrate from backend /api/students/me
   const [profile, setProfile] = useState(() => {
     try {
       const stored = localStorage.getItem('internhubStudent')
       if (stored) {
         const parsed = JSON.parse(stored)
         return {
-          ...mockStudentProfile,
-          ...parsed,
-          name: parsed.name || parsed.fullName || mockStudentProfile.name,
-          email: parsed.email || mockStudentProfile.email,
-          college: parsed.college || mockStudentProfile.college,
-          course: parsed.course || mockStudentProfile.course,
-          year: parsed.yearSemester || parsed.year || mockStudentProfile.year,
+          name: parsed.name || parsed.fullName || 'Student',
+          email: parsed.email || '',
+          college: parsed.college || 'College / University',
+          course: parsed.course || 'Degree Program',
+          year: parsed.yearSemester || parsed.year || '',
+          skills: parsed.skills || '',
+          phone: parsed.phone || '',
         }
       }
     } catch (err) {
       console.error('Error loading student profile:', err)
     }
-    return mockStudentProfile
+    return {
+      name: 'Student',
+      email: '',
+      college: 'College / University',
+      course: 'Degree Program',
+      year: '',
+      skills: '',
+      phone: '',
+    }
   })
 
-  // Fetch live profile from backend if JWT token exists
+  // 3. Application Stats - initialized to 0 for real account, updated dynamically from real applications
+  const [stats, setStats] = useState({
+    totalApplications: 0,
+    underReview: 0,
+    shortlisted: 0,
+    selected: 0,
+  })
+
+  // 4. Recent Applications - initialized to empty, updated from real applications
+  const [applications, setApplications] = useState([])
+
+  // 5. Recommended Internships - fetched from backend /api/internships
+  const [internships, setInternships] = useState([])
+
+  // Fetch live profile, applications, and internships from backend
   useEffect(() => {
     const token = getAuthToken()
     if (!token) return
 
     let isMounted = true
+
+    // Fetch live profile
     getStudentProfile()
       .then((liveProfile) => {
         if (!isMounted || !liveProfile) return
@@ -94,10 +110,99 @@ function StudentDashboard() {
           college: liveProfile.college || prev.college,
           course: liveProfile.course || prev.course,
           year: liveProfile.yearSemester || prev.year,
+          skills: liveProfile.skills || prev.skills,
+          phone: liveProfile.phone || prev.phone,
         }))
       })
       .catch((err) => {
         console.warn('Could not load live profile from /api/students/me:', err.message)
+      })
+
+    // Fetch real applications submitted by this student
+    getMyStudentApplications()
+      .then((apps) => {
+        if (!isMounted || !Array.isArray(apps)) return
+
+        // Compute dynamic stats based on logged-in student's real applications
+        const total = apps.length
+        const underReviewCount = apps.filter(
+          (a) => a.status === 'UNDER_REVIEW' || a.status === 'APPLIED'
+        ).length
+        const shortlistedCount = apps.filter((a) => a.status === 'SHORTLISTED').length
+        const selectedCount = apps.filter(
+          (a) => a.status === 'SELECTED' || a.status === 'ACCEPTED'
+        ).length
+
+        setStats({
+          totalApplications: total,
+          underReview: underReviewCount,
+          shortlisted: shortlistedCount,
+          selected: selectedCount,
+        })
+
+        // Map real recent applications
+        const recent = apps.slice(0, 5).map((app) => {
+          let dateStr = 'Recently'
+          if (app.appliedDate) {
+            try {
+              dateStr = new Date(app.appliedDate).toISOString().split('T')[0]
+            } catch {
+              dateStr = String(app.appliedDate)
+            }
+          }
+
+          let displayStatus = 'Applied'
+          if (app.status === 'SHORTLISTED') displayStatus = 'Shortlisted'
+          else if (app.status === 'UNDER_REVIEW') displayStatus = 'Under Review'
+          else if (app.status === 'REJECTED') displayStatus = 'Rejected'
+          else if (app.status === 'SELECTED') displayStatus = 'Selected'
+
+          return {
+            id: app.id,
+            company: app.internship?.companyName || 'Company',
+            companyLogo: (app.internship?.companyName || 'C').charAt(0),
+            role: app.internship?.role || 'Internship Role',
+            appliedDate: dateStr,
+            status: displayStatus,
+            location: app.internship?.location || 'Remote',
+            stipend: 'Competitive',
+          }
+        })
+
+        setApplications(recent)
+      })
+      .catch((err) => {
+        console.warn('Could not load student applications for dashboard:', err.message)
+      })
+
+    // Fetch live active internships
+    getInternships({ activeOnly: true })
+      .then((list) => {
+        if (!isMounted || !Array.isArray(list)) return
+        if (list.length > 0) {
+          const mapped = list.slice(0, 6).map((item) => ({
+            id: item.id,
+            company: item.companyName,
+            companyInitial: (item.companyName || 'C').charAt(0),
+            role: item.role,
+            location: item.location,
+            duration: '3 Months',
+            stipend: 'Competitive',
+            type: item.location?.toLowerCase().includes('remote') ? 'Remote' : 'Hybrid',
+            deadline: item.applicationDeadline,
+            skills: item.eligibility
+              ? item.eligibility.split(',').map((s) => s.trim()).filter(Boolean)
+              : ['Java', 'React'],
+            description: item.description,
+            eligibility: item.eligibility,
+          }))
+          setInternships(mapped)
+        } else {
+          setInternships([])
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load recommended internships:', err.message)
       })
 
     return () => {
@@ -105,24 +210,17 @@ function StudentDashboard() {
     }
   }, [])
 
-  // 3. Application Stats (TODO: replace with API call: GET /api/student/stats)
-  const [stats] = useState(mockStudentStats)
-
-  // 4. Recent Applications (TODO: replace with API call: GET /api/student/applications/recent)
-  const [applications] = useState(mockRecentApplications)
-
-  // 5. Recommended Internships (TODO: replace with API call: GET /api/student/internships/recommended)
-  const [internships] = useState(mockRecommendedInternships)
-
-  // Compute initials for avatar
-  const displayName = studentName !== 'Student' ? studentName : profile.name
-  const initials = displayName
-    .trim()
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
+  // Dynamic Profile Completion calculation
+  const profileCompletion = useMemo(() => {
+    let completed = 0
+    const total = 5
+    if (profile.name && profile.name !== 'Student') completed++
+    if (profile.email) completed++
+    if (profile.college && profile.college !== 'College / University') completed++
+    if (profile.course && profile.course !== 'Degree Program') completed++
+    if (profile.skills) completed++
+    return Math.round((completed / total) * 100)
+  }, [profile])
 
   const handleOpenDetails = (internship) => {
     setSelectedInternship(internship)
@@ -196,18 +294,18 @@ function StudentDashboard() {
             <div className="profile-completion-section">
               <div className="completion-header">
                 <span className="completion-label">Profile Completion</span>
-                <span className="completion-percentage">{profile.profileCompletion || 85}%</span>
+                <span className="completion-percentage">{profileCompletion}%</span>
               </div>
               <div
                 className="progress-track"
                 role="progressbar"
-                aria-valuenow={profile.profileCompletion || 85}
+                aria-valuenow={profileCompletion}
                 aria-valuemin="0"
                 aria-valuemax="100"
               >
                 <div
                   className="progress-fill"
-                  style={{ width: `${profile.profileCompletion || 85}%` }}
+                  style={{ width: `${profileCompletion}%` }}
                 />
               </div>
             </div>
@@ -320,15 +418,23 @@ function StudentDashboard() {
               </Link>
             </div>
 
-            {/* TODO: replace with API call: GET /api/student/internships/recommended */}
             <div className="internships-grid">
-              {internships.map((internship) => (
-                <InternshipCard
-                  key={internship.id}
-                  internship={internship}
-                  onSelectDetails={handleOpenDetails}
-                />
-              ))}
+              {internships.length > 0 ? (
+                internships.map((internship) => (
+                  <InternshipCard
+                    key={internship.id}
+                    internship={internship}
+                    onSelectDetails={handleOpenDetails}
+                  />
+                ))
+              ) : (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '36px 20px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                  <p style={{ margin: '0 0 12px', fontSize: '15px' }}>No active internships posted yet. New opportunities will appear here soon!</p>
+                  <Link to="/student/internships" className="btn btn-secondary" style={{ display: 'inline-flex', padding: '8px 16px', fontSize: '14px' }}>
+                    Browse All Internships
+                  </Link>
+                </div>
+              )}
             </div>
           </section>
         </main>

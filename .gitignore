@@ -24,3 +24,11 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Local test scripts
+test_*.ps1

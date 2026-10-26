@@ -265,7 +265,15 @@ function StudentProgress() {
     .slice(0, 2)
     .toUpperCase() || 'ST'
 
-  // Look for any application marked as 'Selected' in localStorage
+  const currentStudentEmail = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('internhubStudent')
+      if (stored) return JSON.parse(stored).email || ''
+    } catch {}
+    return ''
+  }, [])
+
+  // Look for any application marked as 'Selected' for this specific student
   const selectedApplication = useMemo(() => {
     try {
       const stored = localStorage.getItem('internhubApplications')
@@ -273,9 +281,14 @@ function StudentProgress() {
         const parsed = JSON.parse(stored)
         if (Array.isArray(parsed)) {
           return (
-            parsed.find(
-              (app) => (app.status || '').toLowerCase() === 'selected'
-            ) || null
+            parsed.find((app) => {
+              if (currentStudentEmail) {
+                const appEmail = app.email || app.studentEmail || ''
+                if (appEmail.toLowerCase() !== currentStudentEmail.toLowerCase()) return false
+              }
+              const s = (app.status || '').toLowerCase()
+              return s === 'selected' || s === 'shortlisted'
+            }) || null
           )
         }
       }
@@ -283,7 +296,7 @@ function StudentProgress() {
       console.error('Error reading internhubApplications:', err)
     }
     return null
-  }, [])
+  }, [currentStudentEmail])
 
   // Resolve active internship (from real selected application or demo preview)
   const activeInternship = useMemo(() => {

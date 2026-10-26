@@ -183,6 +183,21 @@ public class ApplicationService {
     }
 
     /**
+     * Returns all applications submitted by the student with the given email.
+     * Throws 404 if student does not exist.
+     */
+    @Transactional(readOnly = true)
+    public List<Application> findByStudentEmail(String studentEmail) {
+        if (studentEmail == null || studentEmail.isBlank()) {
+            throw new IllegalArgumentException("Student email must not be null or blank");
+        }
+        Student student = studentRepository.findByEmail(studentEmail.trim())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Student not found with email: " + studentEmail));
+        return applicationRepository.findByStudentId(student.getId());
+    }
+
+    /**
      * Returns all applications for a given internship.
      * Throws 404 if the internship does not exist at all.
      */

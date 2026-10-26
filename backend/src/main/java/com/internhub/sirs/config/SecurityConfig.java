@@ -65,6 +65,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/hr/me").hasRole("HR")
                         .requestMatchers("/api/internships/my").hasRole("HR")
                         .requestMatchers("/api/applications/hr/my").hasRole("HR")
+                        .requestMatchers("/api/applications/student/my").hasRole("STUDENT")
                         .requestMatchers("/api/notifications/student/**").hasRole("STUDENT")
                         .requestMatchers("/api/notifications/hr/**").hasRole("HR")
 

@@ -205,6 +205,8 @@ function StudentApplication() {
                 internshipTitle: internship?.title || 'Internship',
                 company: internship?.company || 'Company',
                 studentName,
+                studentId: studentData?.id || null,
+                studentEmail: formData.email,
                 ...formData,
                 resumeName: resume?.name || '',
                 additionalDocumentNames: additionalDocs.map((file) => file.name),

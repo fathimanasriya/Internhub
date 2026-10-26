@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import Sidebar from '../../components/hr/Sidebar'
 import Topbar from '../../components/hr/Topbar'
-import { getHrProfile, getHrAuthToken, getHrApplications, getInternships } from '../../services/api'
+import { getHrProfile, getHrAuthToken, getHrApplications, getMyInternships } from '../../services/api'
 import './HRDashboard.css'
 
 /**
@@ -55,64 +55,9 @@ function HRDashboard() {
     };
   });
 
-  useEffect(() => {
-    const token = getHrAuthToken();
-    if (!token) return;
-
-    let isMounted = true;
-    getHrProfile()
-      .then((profile) => {
-        if (!isMounted || !profile) return;
-        const name = profile.hrName || 'HR Recruiter';
-        const company = profile.companyName || 'Enterprise Partner';
-        const initials = name.trim().split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'HR';
-        setHrInfo({
-          name,
-          initials,
-          company,
-          tier: profile.designation || 'Enterprise Recruiter',
-        });
-      })
-      .catch((err) => {
-        console.warn('Could not load live HR profile:', err.message);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // 2. Statistics (Demo values per specification)
-  const stats = [
-    {
-      id: 'active-internships',
-      label: 'Active Internships',
-      value: 4,
-      icon: Briefcase,
-      trend: '3 active hiring pipelines',
-    },
-    {
-      id: 'total-applications',
-      label: 'Total Applications',
-      value: 48,
-      icon: Users,
-      trend: '+12 new this week',
-    },
-    {
-      id: 'selected-candidates',
-      label: 'Selected Candidates',
-      value: 12,
-      icon: CheckCircle2,
-      trend: '4 offers accepted',
-    },
-    {
-      id: 'current-interns',
-      label: 'Current Interns',
-      value: 8,
-      icon: GraduationCap,
-      trend: '2 active batches',
-    },
-  ]
+  // 2. Real Applications & Internships states
+  const [applications, setApplications] = useState([])
+  const [internships, setInternships] = useState([])
 
   // 3. Quick Actions
   const quickActions = [
@@ -122,7 +67,7 @@ function HRDashboard() {
       description: 'Publish a new internship listing with customized requirements, skills, and stipends.',
       icon: PlusCircle,
       actionText: 'Post New Role',
-      target: '/hr/internships/create',
+      target: '/hr/internships',
     },
     {
       id: 'view-applications',
@@ -149,10 +94,33 @@ function HRDashboard() {
 
     let isMounted = true
 
-    // Fetch real applications
+    // Fetch live HR profile
+    getHrProfile()
+      .then((profile) => {
+        if (!isMounted || !profile) return
+        const name = profile.hrName || 'HR Recruiter'
+        const company = profile.companyName || 'Enterprise Partner'
+        const initials = name.trim().split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'HR'
+        setHrInfo({
+          name,
+          initials,
+          company,
+          tier: profile.designation || 'Enterprise Recruiter',
+        })
+      })
+      .catch((err) => {
+        console.warn('Could not load live HR profile:', err.message)
+      })
+
+    // Fetch real applications received for this HR user's postings
     getHrApplications()
       .then((backendApps) => {
-        if (!isMounted || !Array.isArray(backendApps) || backendApps.length === 0) return
+        if (!isMounted) return
+        if (!Array.isArray(backendApps) || backendApps.length === 0) {
+          setApplications([])
+          return
+        }
+
         const mapped = backendApps.map((item) => {
           const student = item.student || {}
           const internship = item.internship || {}
@@ -203,142 +171,81 @@ function HRDashboard() {
         console.warn('Could not load HR applications for dashboard:', err.message)
       })
 
+    // Fetch real internships posted by this HR user
+    getMyInternships()
+      .then((backendList) => {
+        if (!isMounted) return
+        if (!Array.isArray(backendList) || backendList.length === 0) {
+          setInternships([])
+          return
+        }
+
+        const mapped = backendList.map((item) => {
+          const isClosed =
+            item.applicationDeadline &&
+            new Date(item.applicationDeadline) < new Date(new Date().toDateString())
+          return {
+            id: item.id,
+            title: item.role,
+            category: 'Engineering',
+            location: item.location,
+            duration: '3 Months',
+            applicationsCount: 0,
+            status: isClosed ? 'Closed' : 'Active',
+            stipend: 'Competitive',
+            postedDate: 'Recently',
+            description: item.description,
+          }
+        })
+        setInternships(mapped)
+      })
+      .catch((err) => {
+        console.warn('Could not load HR internships for dashboard:', err.message)
+      })
+
     return () => {
       isMounted = false
     }
   }, [])
-  const [applications, setApplications] = useState([
-    {
-      id: 'app-01',
-      studentName: 'Rohan Sharma',
-      avatarInitials: 'RS',
-      email: 'rohan.sharma@gmail.com',
-      university: 'IIT Bombay • Computer Science',
-      internship: 'Software Development Intern',
-      department: 'Engineering',
-      appliedDate: 'Oct 02, 2026',
-      status: 'Under Review',
-      skills: ['React', 'Node.js', 'PostgreSQL'],
-      gpa: '8.8 / 10',
-    },
-    {
-      id: 'app-02',
-      studentName: 'Priya Patel',
-      avatarInitials: 'PP',
-      email: 'priya.patel@gmail.com',
-      university: 'NID Ahmedabad • Interaction Design',
-      internship: 'UI/UX Design Intern',
-      department: 'Design',
-      appliedDate: 'Oct 01, 2026',
-      status: 'Selected',
-      skills: ['Figma', 'Wireframing', 'User Research'],
-      gpa: '9.2 / 10',
-    },
-    {
-      id: 'app-03',
-      studentName: 'Ananya Iyer',
-      avatarInitials: 'AI',
-      email: 'ananya.iyer@gmail.com',
-      university: 'BITS Pilani • Data Science',
-      internship: 'Data Analyst Intern',
-      department: 'Analytics',
-      appliedDate: 'Sep 30, 2026',
-      status: 'Applied',
-      skills: ['Python', 'SQL', 'Power BI'],
-      gpa: '8.5 / 10',
-    },
-    {
-      id: 'app-04',
-      studentName: 'Kabir Mehta',
-      avatarInitials: 'KM',
-      email: 'kabir.mehta@gmail.com',
-      university: 'IIIT Hyderabad • Cloud Computing',
-      internship: 'Cloud & DevOps Intern',
-      department: 'Infrastructure',
-      appliedDate: 'Sep 29, 2026',
-      status: 'Selected',
-      skills: ['AWS', 'Docker', 'Kubernetes'],
-      gpa: '9.0 / 10',
-    },
-    {
-      id: 'app-05',
-      studentName: 'Sneha Kulkarni',
-      avatarInitials: 'SK',
-      email: 'sneha.k@gmail.com',
-      university: 'Delhi University • Business Administration',
-      internship: 'Business Analyst Intern',
-      department: 'Product',
-      appliedDate: 'Sep 28, 2026',
-      status: 'Rejected',
-      skills: ['Excel', 'Agile', 'Market Analysis'],
-      gpa: '7.8 / 10',
-    },
-    {
-      id: 'app-06',
-      studentName: 'Vikram Malhotra',
-      avatarInitials: 'VM',
-      email: 'vikram.m@gmail.com',
-      university: 'VIT Vellore • Information Technology',
-      internship: 'Software Development Intern',
-      department: 'Engineering',
-      appliedDate: 'Sep 27, 2026',
-      status: 'Applied',
-      skills: ['JavaScript', 'HTML/CSS', 'Git'],
-      gpa: '8.2 / 10',
-    },
-  ])
 
-  // 5. Demo Active Internships Data
-  const [internships] = useState([
-    {
-      id: 'role-01',
-      title: 'Software Development Intern',
-      category: 'Engineering',
-      location: 'Remote / Bangalore',
-      duration: '6 Months',
-      applicationsCount: 18,
-      status: 'Active',
-      stipend: '₹25,000 / mo',
-      postedDate: '2 days ago',
-      description: 'Building enterprise React microfrontends and REST API integrations.',
-    },
-    {
-      id: 'role-02',
-      title: 'UI/UX Design Intern',
-      category: 'Design',
-      location: 'Mumbai (Hybrid)',
-      duration: '4 Months',
-      applicationsCount: 14,
-      status: 'Active',
-      stipend: '₹22,000 / mo',
-      postedDate: '3 days ago',
-      description: 'Creating design system tokens, wireframes, and candidate user flows.',
-    },
-    {
-      id: 'role-03',
-      title: 'Data Analyst Intern',
-      category: 'Analytics',
-      location: 'Remote',
-      duration: '3 Months',
-      applicationsCount: 10,
-      status: 'Active',
-      stipend: '₹20,000 / mo',
-      postedDate: '5 days ago',
-      description: 'Designing automated executive KPI pipelines and reporting dashboards.',
-    },
-    {
-      id: 'role-04',
-      title: 'Cloud & DevOps Intern',
-      category: 'Infrastructure',
-      location: 'Hyderabad (On-site)',
-      duration: '6 Months',
-      applicationsCount: 6,
-      status: 'Active',
-      stipend: '₹28,000 / mo',
-      postedDate: '1 week ago',
-      description: 'Managing AWS container deployments, CI/CD pipelines, and cluster health.',
-    },
-  ])
+  // 4. Dynamic Statistics based on live HR account data
+  const stats = useMemo(() => {
+    const activeCount = internships.filter((i) => i.status === 'Active').length
+    const totalApps = applications.length
+    const selectedCount = applications.filter((a) => a.status === 'Selected').length
+    const currentInternsCount = selectedCount
+
+    return [
+      {
+        id: 'active-internships',
+        label: 'Active Internships',
+        value: activeCount,
+        icon: Briefcase,
+        trend: `${activeCount} active hiring pipelines`,
+      },
+      {
+        id: 'total-applications',
+        label: 'Total Applications',
+        value: totalApps,
+        icon: Users,
+        trend: `${totalApps} total applicants`,
+      },
+      {
+        id: 'selected-candidates',
+        label: 'Selected Candidates',
+        value: selectedCount,
+        icon: CheckCircle2,
+        trend: `${selectedCount} candidates selected`,
+      },
+      {
+        id: 'current-interns',
+        label: 'Current Interns',
+        value: currentInternsCount,
+        icon: GraduationCap,
+        trend: `${currentInternsCount} active interns`,
+      },
+    ]
+  }, [internships, applications])
 
   // Filtered Applications logic
   const filteredApplications = useMemo(() => {
@@ -650,69 +557,81 @@ function HRDashboard() {
                   Active Internships
                 </h3>
                 <p className="hr-section-desc">
-                  Open opportunities published by TechNova Labs receiving student applications.
+                  Open opportunities published by {hrInfo.company} receiving student applications.
                 </p>
               </div>
             </div>
 
             <div className="hr-internships-grid">
-              {internships.map((item) => (
-                <div key={item.id} className="hr-internship-card">
-                  <div>
-                    <div className="hr-card-top-row">
-                      <span className="hr-internship-category">{item.category}</span>
-                      <span className="hr-badge-active">
-                        <CheckCircle2 size={12} />
-                        <span>{item.status}</span>
-                      </span>
-                    </div>
-
-                    <h4 className="hr-internship-title" style={{ marginTop: '10px' }}>
-                      {item.title}
-                    </h4>
-                    <p style={{ fontSize: '13px', color: 'var(--hr-muted-gray)', margin: '0 0 14px', lineHeight: '1.5' }}>
-                      {item.description}
-                    </p>
-
-                    <div className="hr-meta-grid">
-                      <div className="hr-meta-item">
-                        <span className="hr-meta-label">Location</span>
-                        <span className="hr-meta-value" title={item.location}>
-                          {item.location}
+              {internships.length > 0 ? (
+                internships.map((item) => (
+                  <div key={item.id} className="hr-internship-card">
+                    <div>
+                      <div className="hr-card-top-row">
+                        <span className="hr-internship-category">{item.category}</span>
+                        <span className="hr-badge-active">
+                          <CheckCircle2 size={12} />
+                          <span>{item.status}</span>
                         </span>
                       </div>
-                      <div className="hr-meta-item">
-                        <span className="hr-meta-label">Duration</span>
-                        <span className="hr-meta-value">{item.duration}</span>
-                      </div>
-                      <div className="hr-meta-item">
-                        <span className="hr-meta-label">Stipend</span>
-                        <span className="hr-meta-value">{item.stipend}</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="hr-card-footer">
-                    <div className="hr-applicants-chip">
-                      <Users size={16} />
-                      <span>{item.applicationsCount} Applicants</span>
+                      <h4 className="hr-internship-title" style={{ marginTop: '10px' }}>
+                        {item.title}
+                      </h4>
+                      <p style={{ fontSize: '13px', color: 'var(--hr-muted-gray)', margin: '0 0 14px', lineHeight: '1.5' }}>
+                        {item.description}
+                      </p>
+
+                      <div className="hr-meta-grid">
+                        <div className="hr-meta-item">
+                          <span className="hr-meta-label">Location</span>
+                          <span className="hr-meta-value" title={item.location}>
+                            {item.location}
+                          </span>
+                        </div>
+                        <div className="hr-meta-item">
+                          <span className="hr-meta-label">Duration</span>
+                          <span className="hr-meta-value">{item.duration}</span>
+                        </div>
+                        <div className="hr-meta-item">
+                          <span className="hr-meta-label">Stipend</span>
+                          <span className="hr-meta-value">{item.stipend}</span>
+                        </div>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      className="hr-btn-manage"
-                      onClick={() =>
-                        setActiveModal({
-                          type: 'manageInternship',
-                          data: item,
-                        })
-                      }
-                    >
-                      <span>View / Manage</span>
-                      <ChevronRight size={15} />
-                    </button>
+
+                    <div className="hr-card-footer">
+                      <div className="hr-applicants-chip">
+                        <Users size={16} />
+                        <span>{item.applicationsCount} Applicants</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="hr-btn-manage"
+                        onClick={() =>
+                          setActiveModal({
+                            type: 'manageInternship',
+                            data: item,
+                          })
+                        }
+                      >
+                        <span>View / Manage</span>
+                        <ChevronRight size={15} />
+                      </button>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '36px 20px', background: 'white', borderRadius: '12px', border: '1px solid var(--hr-border-color)' }}>
+                  <p style={{ color: 'var(--hr-muted-gray)', margin: '0 0 16px', fontSize: '15px' }}>
+                    You have not posted any active internships yet.
+                  </p>
+                  <a href="/hr/internships" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none' }}>
+                    <PlusCircle size={18} />
+                    <span>Post an Internship</span>
+                  </a>
                 </div>
-              ))}
+              )}
             </div>
           </section>
         </main>

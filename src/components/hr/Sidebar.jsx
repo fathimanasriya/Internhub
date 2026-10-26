@@ -10,6 +10,7 @@ import {
   LogOut,
   X,
 } from 'lucide-react'
+import { logoutHr } from '../../services/api'
 
 /**
  * HR Sidebar Component
@@ -20,10 +21,7 @@ function Sidebar({ isOpen, onClose }) {
 
   const handleLogout = (e) => {
     e.preventDefault()
-    // Clear any stored HR session data
-    localStorage.removeItem('internhubHR')
-    localStorage.removeItem('hrToken')
-    // Redirect to HR login
+    logoutHr()
     navigate('/hr/login')
   }
 

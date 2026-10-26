@@ -1,9 +1,20 @@
 /**
  * Centralized API helper for InternHub frontend-backend communication.
  * Base URL points to the Spring Boot REST API.
+ * Dynamically resolves from Vite environment variables (VITE_API_BASE_URL / VITE_API_URL)
+ * with a fallback to localhost:8080 for local development.
  */
 
-const API_BASE_URL = 'http://localhost:8080/api'
+const getBaseApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
+  if (!envUrl || !envUrl.trim()) {
+    return 'http://localhost:8080/api'
+  }
+  const cleanUrl = envUrl.trim().replace(/\/+$/, '')
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`
+}
+
+export const API_BASE_URL = getBaseApiUrl()
 const STUDENT_TOKEN_KEY = 'studentToken'
 const STUDENT_KEY = 'internhubStudent'
 
@@ -49,11 +60,19 @@ export function getHrAuthToken() {
 
 /**
  * Store authenticated student session token and student data.
+ * Cleans up any conflicting HR session data.
  * @param {string} token
  * @param {Object} student
  */
 export function setAuthSession(token, student) {
   try {
+    // Clear HR session data to prevent cross-role token leakage
+    localStorage.removeItem(HR_TOKEN_KEY)
+    localStorage.removeItem(HR_KEY)
+    localStorage.removeItem(HR_PROFILE_KEY)
+    localStorage.removeItem('internhubHRApplications')
+    localStorage.removeItem('internhubHRInternships')
+
     if (token) {
       localStorage.setItem(STUDENT_TOKEN_KEY, token)
     }
@@ -84,11 +103,16 @@ export function logoutStudent() {
 
 /**
  * Store authenticated HR session token and HR user data.
+ * Cleans up any conflicting Student session data.
  * @param {string} token
  * @param {Object} hrUser
  */
 export function setHrAuthSession(token, hrUser) {
   try {
+    // Clear student session data to prevent cross-role token leakage
+    localStorage.removeItem(STUDENT_TOKEN_KEY)
+    localStorage.removeItem(STUDENT_KEY)
+
     if (token) {
       localStorage.setItem(HR_TOKEN_KEY, token)
     }
@@ -109,6 +133,8 @@ export function logoutHr() {
     localStorage.removeItem(HR_TOKEN_KEY)
     localStorage.removeItem(HR_KEY)
     localStorage.removeItem(HR_PROFILE_KEY)
+    localStorage.removeItem('internhubHRApplications')
+    localStorage.removeItem('internhubHRInternships')
   } catch (err) {
     console.error('Error clearing HR auth session:', err)
   }
@@ -127,15 +153,25 @@ export async function apiRequest(endpoint, options = {}) {
 
   // Choose token depending on endpoint
   let token = null
-  if (endpoint.startsWith('/hr') || endpoint === '/internships/my' || endpoint === '/applications/hr/my' || endpoint.startsWith('/notifications/hr')) {
+  if (
+    endpoint.startsWith('/hr') ||
+    endpoint === '/internships/my' ||
+    endpoint === '/applications/hr/my' ||
+    endpoint.startsWith('/notifications/hr') ||
+    (endpoint.startsWith('/internships') && (options.method === 'POST' || options.method === 'PUT' || options.method === 'DELETE')) ||
+    (endpoint.startsWith('/applications/') && endpoint.endsWith('/status'))
+  ) {
     token = getHrAuthToken()
-  } else if (endpoint.startsWith('/students/me') || endpoint.startsWith('/notifications/student')) {
-    token = getAuthToken()
-  } else if (endpoint === '/applications' && options.method === 'POST') {
-    // Submitting application as a student
+  } else if (
+    endpoint.startsWith('/students/me') ||
+    endpoint === '/applications/student/my' ||
+    endpoint.startsWith('/applications/student/') ||
+    endpoint.startsWith('/notifications/student') ||
+    (endpoint === '/applications' && options.method === 'POST')
+  ) {
     token = getAuthToken()
   } else {
-    // General endpoint (e.g. POST /internships can be HR)
+    // General read endpoint
     token = getHrAuthToken() || getAuthToken()
   }
 
@@ -422,6 +458,13 @@ export async function getHrApplications() {
  */
 export async function getStudentApplications(studentId) {
   return apiRequest(`/applications/student/${studentId}`, { method: 'GET' })
+}
+
+/**
+ * Fetch all applications for the authenticated student via /applications/student/my.
+ */
+export async function getMyStudentApplications() {
+  return apiRequest('/applications/student/my', { method: 'GET' })
 }
 
 /**

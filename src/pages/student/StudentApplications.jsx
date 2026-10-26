@@ -26,7 +26,7 @@ import './StudentDashboard.css'
 import Sidebar from '../../components/student/Sidebar'
 import Topbar from '../../components/student/Topbar'
 import { mockStudentProfile } from '../../data/studentMockData'
-import { getStudentProfile, getStudentApplications, getAuthToken } from '../../services/api'
+import { getStudentProfile, getStudentApplications, getMyStudentApplications, getAuthToken } from '../../services/api'
 
 /**
  * Normalizes an application record loaded from localStorage.
@@ -119,8 +119,8 @@ function StudentApplications() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedApp, setSelectedApp] = useState(null)
 
-  // Student Identity: read from localStorage (key: "internhubStudent"), fallback to mock data
-  const [studentName] = useState(() => {
+  // Student Identity: read from localStorage (key: "internhubStudent")
+  const [studentName, setStudentName] = useState(() => {
     try {
       const stored = localStorage.getItem('internhubStudent')
       if (stored) {
@@ -130,7 +130,19 @@ function StudentApplications() {
     } catch {
       // fallback
     }
-    return mockStudentProfile.name || 'Student'
+    return 'Student'
+  })
+
+  const [currentStudentEmail, setCurrentStudentEmail] = useState(() => {
+    try {
+      const stored = localStorage.getItem('internhubStudent')
+      if (stored) {
+        return JSON.parse(stored).email || ''
+      }
+    } catch {
+      // fallback
+    }
+    return ''
   })
 
   const initials = studentName
@@ -141,7 +153,7 @@ function StudentApplications() {
     .slice(0, 2)
     .toUpperCase() || 'ST'
 
-  // Load applications from localStorage with live backend synchronization
+  // Load applications from backend
   const [backendApps, setBackendApps] = useState([])
 
   useEffect(() => {
@@ -150,17 +162,27 @@ function StudentApplications() {
 
     let isMounted = true
 
-    getStudentProfile()
-      .then((profile) => {
-        if (!isMounted || !profile || !profile.id) return
-        return getStudentApplications(profile.id)
-      })
+    getMyStudentApplications()
       .then((apps) => {
         if (!isMounted || !Array.isArray(apps)) return
         setBackendApps(apps)
       })
-      .catch((err) => {
-        console.warn('Could not sync student applications from backend:', err.message)
+      .catch(() => {
+        // Fallback to getStudentProfile -> getStudentApplications
+        getStudentProfile()
+          .then((profile) => {
+            if (!isMounted || !profile) return
+            if (profile.fullName || profile.name) setStudentName(profile.fullName || profile.name)
+            if (profile.email) setCurrentStudentEmail(profile.email)
+            if (profile.id) return getStudentApplications(profile.id)
+          })
+          .then((apps) => {
+            if (!isMounted || !Array.isArray(apps)) return
+            setBackendApps(apps)
+          })
+          .catch((err) => {
+            console.warn('Could not sync student applications from backend:', err.message)
+          })
       })
 
     return () => {
@@ -169,62 +191,87 @@ function StudentApplications() {
   }, [])
 
   const rawApplications = useMemo(() => {
-    let localList = []
-    try {
-      const stored = localStorage.getItem('internhubApplications')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed)) {
-          localList = parsed.map((item, index) => normalizeApplication(item, index))
+    // If backend returned applications, map them as the single source of truth
+    if (backendApps.length > 0) {
+      return backendApps.map((bApp, index) => {
+        const bInternshipId = bApp.internship?.id
+        const bStatus =
+          bApp.status === 'SHORTLISTED'
+            ? 'Selected'
+            : bApp.status === 'REJECTED'
+            ? 'Rejected'
+            : bApp.status === 'UNDER_REVIEW'
+            ? 'Under Review'
+            : 'Applied'
+
+        let dateStr = 'Recently'
+        if (bApp.appliedDate) {
+          try {
+            dateStr = new Date(bApp.appliedDate).toLocaleDateString('en-US', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          } catch {
+            dateStr = String(bApp.appliedDate)
+          }
         }
-      }
-    } catch (err) {
-      console.error('Error loading internhubApplications from localStorage:', err)
-    }
 
-    if (backendApps.length === 0) return localList
+        let skillsArr = []
+        if (bApp.student?.skills) {
+          skillsArr = Array.isArray(bApp.student.skills)
+            ? bApp.student.skills
+            : bApp.student.skills.split(',').map((s) => s.trim()).filter(Boolean)
+        }
 
-    // Merge backend applications, updating status from backend
-    const merged = [...localList]
-    backendApps.forEach((bApp) => {
-      const bInternshipId = bApp.internship?.id
-      const bStatus = bApp.status === 'SHORTLISTED' ? 'Selected' : bApp.status === 'REJECTED' ? 'Rejected' : bApp.status === 'UNDER_REVIEW' ? 'Under Review' : 'Applied'
-      const existing = merged.find(
-        (m) =>
-          m.id === bApp.id ||
-          (m.internshipId && String(m.internshipId) === String(bInternshipId))
-      )
-      if (existing) {
-        existing.status = bStatus
-        existing.id = bApp.id
-      } else {
-        merged.unshift({
+        return {
           id: bApp.id,
           internshipId: bInternshipId,
-          internshipTitle: bApp.internship?.role || 'Internship',
-          company: bApp.internship?.companyName || 'Company',
+          internshipTitle: bApp.internship?.role || 'Internship Role',
+          company: bApp.internship?.companyName || 'Partner Company',
           companyInitial: (bApp.internship?.companyName || 'C').charAt(0),
           status: bStatus,
-          appliedDate: bApp.appliedDate || 'Recently',
-          fullName: bApp.student?.name || 'Student',
-          email: bApp.student?.email || '',
-          phone: bApp.student?.phone || '',
-          college: bApp.student?.college || '',
-          course: bApp.student?.course || '',
-          department: bApp.student?.department || '',
-          skills: bApp.student?.skills ? (Array.isArray(bApp.student.skills) ? bApp.student.skills : bApp.student.skills.split(',')) : [],
+          appliedDate: dateStr,
+          fullName: bApp.student?.name || studentName,
+          email: bApp.student?.email || currentStudentEmail,
+          phone: bApp.student?.phone || 'Not provided',
+          college: bApp.student?.college || 'Not provided',
+          course: bApp.student?.course || 'Not provided',
+          department: bApp.student?.department || 'Not provided',
+          skills: skillsArr,
           whyJoin: bApp.notes || '',
           availability: 'Immediately',
           workMode: 'Hybrid',
           resumeName: 'Resume.pdf',
           additionalDocumentNames: [],
           location: bApp.internship?.location || '',
-          stipend: '',
-        })
+          stipend: 'Competitive',
+        }
+      })
+    }
+
+    // Otherwise check local applications strictly belonging to the currently logged in student
+    let localList = []
+    try {
+      const stored = localStorage.getItem('internhubApplications')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          localList = parsed
+            .filter((item) => {
+              if (!currentStudentEmail) return false
+              const itemEmail = item.email || item.studentEmail || ''
+              return itemEmail.toLowerCase() === currentStudentEmail.toLowerCase()
+            })
+            .map((item, index) => normalizeApplication(item, index))
+        }
       }
-    })
-    return merged
-  }, [backendApps])
+    } catch (err) {
+      console.error('Error loading internhubApplications from localStorage:', err)
+    }
+
+    return localList
+  }, [backendApps, currentStudentEmail, studentName])
 
   // Dynamic Status Summary Metrics
   const metrics = useMemo(() => {

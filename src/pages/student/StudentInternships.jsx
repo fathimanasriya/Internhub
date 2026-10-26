@@ -24,7 +24,7 @@ import Sidebar from '../../components/student/Sidebar'
 import Topbar from '../../components/student/Topbar'
 import { mockStudentProfile } from '../../data/studentMockData'
 import { sampleInternships } from '../../data/internshipsData'
-import { getInternships } from '../../services/api'
+import { getInternships, API_BASE_URL } from '../../services/api'
 
 // Filter options as required
 const CATEGORIES = [
@@ -323,7 +323,7 @@ function StudentInternships() {
               }}
             >
               <Loader2 size={18} className="demo-icon" style={{ animation: 'spin 1s linear infinite' }} />
-              <span>Connecting to Spring Boot backend at <code>http://localhost:8080/api/internships</code>...</span>
+              <span>Connecting to Spring Boot backend at <code>{API_BASE_URL}/internships</code>...</span>
             </div>
           ) : dataSource === 'backend' ? (
             <div
@@ -353,7 +353,7 @@ function StudentInternships() {
               <AlertCircle size={18} style={{ color: '#D97706', flexShrink: 0 }} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
                 <span>
-                  <strong>Development Fallback Active:</strong> Unable to connect to backend (<code>http://localhost:8080/api</code>). Currently displaying local sample internships.
+                  <strong>Development Fallback Active:</strong> Unable to connect to backend (<code>{API_BASE_URL}</code>). Currently displaying local sample internships.
                 </span>
                 <span style={{ fontSize: '12px', opacity: 0.85 }}>
                   {apiError} — Start the backend with <code>mvn spring-boot:run</code> to view live MySQL listings.

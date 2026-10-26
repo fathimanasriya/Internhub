@@ -98,6 +98,21 @@ public class ApplicationController {
     }
 
     // ------------------------------------------------------------------ //
+    //  GET /api/applications/student/my  — get current student's apps     //
+    // ------------------------------------------------------------------ //
+
+    @GetMapping("/student/my")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(
+        summary = "Get all applications for currently authenticated student",
+        description = "Returns every application submitted by the authenticated student based on their JWT token."
+    )
+    public ResponseEntity<List<Application>> findMyStudentApplications(Authentication authentication) {
+        String studentEmail = (authentication != null) ? authentication.getName() : null;
+        return ResponseEntity.ok(applicationService.findByStudentEmail(studentEmail));
+    }
+
+    // ------------------------------------------------------------------ //
     //  GET /api/applications/student/{studentId}                          //
     // ------------------------------------------------------------------ //
 
