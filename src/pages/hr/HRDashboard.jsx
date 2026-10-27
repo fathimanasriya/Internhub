@@ -17,6 +17,13 @@ import Sidebar from '../../components/hr/Sidebar'
 import Topbar from '../../components/hr/Topbar'
 import { getHrProfile, getHrAuthToken, getHrApplications, getMyInternships } from '../../services/api'
 import './HRDashboard.css'
+import {
+  getHrProfile,
+  getHrAuthToken,
+  getHrApplications,
+  getMyInternships,
+  updateApplicationStatus,
+} from '../../services/api'
 
 /**
  * HR Dashboard Page
@@ -121,6 +128,14 @@ function HRDashboard() {
           return
         }
 
+         const STATUS_LABELS = { 
+            APPLIED: 'Applied',
+            UNDER_REVIEW: 'Under Review',
+            SHORTLISTED: 'Shortlisted',
+            SELECTED: 'Selected',
+            REJECTED: 'Rejected',
+        }
+
         const mapped = backendApps.map((item) => {
           const student = item.student || {}
           const internship = item.internship || {}
@@ -139,10 +154,7 @@ function HRDashboard() {
             }
           }
 
-          let displayStatus = 'Under Review'
-          if (item.status === 'APPLIED') displayStatus = 'Applied'
-          else if (item.status === 'SHORTLISTED') displayStatus = 'Selected'
-          else if (item.status === 'REJECTED') displayStatus = 'Rejected'
+          const displayStatus = STATUS_LABELS[String(item.status || '').trim().toUpperCase()] || 'Unknown'
 
           let skillsArr = ['React', 'Java']
           if (student.skills) {
@@ -283,18 +295,39 @@ function HRDashboard() {
     return <span className={className}>{status}</span>
   }
 
-  // Update application status demo helper
-  const handleUpdateStatus = (appId, newStatus) => {
-    setApplications((prev) =>
-      prev.map((app) => (app.id === appId ? { ...app, status: newStatus } : app))
+  // Update application status
+  const STATUS_TO_API = {
+  Applied: 'APPLIED',
+  'Under Review': 'UNDER_REVIEW',
+  Shortlisted: 'SHORTLISTED',
+  Selected: 'SELECTED',
+  Rejected: 'REJECTED',
+}
+
+const handleUpdateStatus = async (appId, newStatus) => {
+  try {
+    await updateApplicationStatus(
+      appId,
+      STATUS_TO_API[newStatus]
     )
-    if (activeModal && activeModal.data && activeModal.data.id === appId) {
-      setActiveModal({
-        ...activeModal,
-        data: { ...activeModal.data, status: newStatus },
-      })
-    }
+  } catch (err) {
+    alert(err.message || 'Could not update status')
+    return
   }
+
+  setApplications((prev) =>
+    prev.map((a) =>
+      a.id === appId ? { ...a, status: newStatus } : a
+    )
+  )
+
+  if (activeModal?.data?.id === appId) {
+    setActiveModal({
+      ...activeModal,
+      data: { ...activeModal.data, status: newStatus },
+    })
+  }
+}
 
   return (
     <div className="hr-dashboard-layout">
