@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Briefcase,
@@ -44,6 +44,15 @@ function StudentDashboard() {
     }
     return 'Student'
   })
+
+  const displayName = studentName
+  const initials = displayName
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'ST'
 
   // 2. Profile Details: initialize with localStorage or defaults, then hydrate from backend /api/students/me
   const [profile, setProfile] = useState(() => {
