@@ -12,12 +12,24 @@ import {
 } from 'lucide-react'
 import { logoutHr } from '../../services/api'
 
+
+
 /**
  * HR Sidebar Component
  * Fixed left navigation sidebar for the HR & Employer portal with responsive mobile drawer support.
  */
 function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate()
+
+   // Read the saved HR profile
+  let hr = {}
+try {
+  hr = JSON.parse(
+    localStorage.getItem('internhubHRProfile') || localStorage.getItem('internhubHR') || '{}'
+  )
+} catch {
+  hr = {}
+}
 
   const handleLogout = (e) => {
     e.preventDefault()
@@ -72,8 +84,8 @@ function Sidebar({ isOpen, onClose }) {
             <Building2 size={16} />
           </div>
           <div className="company-meta">
-            <span className="company-name">TechNova Labs</span>
-            <span className="company-tier">Enterprise Recruiter</span>
+           <span className="company-name">{hr.companyName || 'Your Company'}</span>
+           <span className="company-tier">{hr.designation || 'Recruiter'}</span>
           </div>
         </div>
 
