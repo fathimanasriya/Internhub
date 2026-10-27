@@ -322,10 +322,10 @@ function HRDashboard() {
             <div className="hr-welcome-content">
               <div className="hr-welcome-pill">
                 <Check size={14} />
-                <span>TechNova Labs • Employer Portal</span>
+                <span>{hrInfo.company} • Employer Portal</span>
               </div>
               <h2 id="hr-welcome-heading" className="hr-welcome-title">
-                Welcome back, HR!
+                Welcome back, {hrInfo.name}!
               </h2>
               <p className="hr-welcome-subtitle">
                 Manage your internships, applications, and interns from one place.
